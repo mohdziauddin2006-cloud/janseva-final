@@ -3,6 +3,7 @@ import requests
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import pydeck as pdk
 from backend import get_all_complaints, update_ticket_status
 
 st.set_page_config(page_title="JanSeva National Command", layout="wide")
@@ -88,7 +89,6 @@ if page == "Overview":
             st.markdown('<div style="background:white; padding:15px; border-radius:8px; border:1px solid #e8e8e8;"><b>Grievances by Category</b><br>', unsafe_allow_html=True)
             cat_df = df["Cat"].value_counts().reset_index()
             cat_df.columns = ["Category", "Count"]
-            # Dark red bars matching Figma
             fig_bar = px.bar(cat_df, x="Category", y="Count", color_discrete_sequence=["#800000"])
             fig_bar.update_layout(plot_bgcolor="white", paper_bgcolor="white", margin=dict(t=20, l=0, r=0, b=0), height=280)
             fig_bar.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
@@ -99,7 +99,6 @@ if page == "Overview":
             st.markdown('<div style="background:white; padding:15px; border-radius:8px; border:1px solid #e8e8e8;"><b>Status Distribution</b><br>', unsafe_allow_html=True)
             status_df = df["Status"].value_counts().reset_index()
             status_df.columns = ["Status", "Count"]
-            # Exact Figma Pie Chart Colors
             color_map = {"Resolved": "#10b981", "Pending": "#f59e0b", "In Progress": "#3b82f6"}
             fig_pie = px.pie(status_df, values="Count", names="Status", color="Status", color_discrete_map=color_map, hole=0.0)
             fig_pie.update_layout(margin=dict(t=20, l=0, r=0, b=0), height=280, showlegend=True)
@@ -110,10 +109,8 @@ if page == "Overview":
 
         # --- DEPARTMENT GRID ---
         st.markdown('<div style="background:white; padding:20px; border-radius:8px; border:1px solid #e8e8e8;"><b>Department-wise Summary</b><br><br>', unsafe_allow_html=True)
-        # Scaled for National Level (Instead of CSE/ECE)
         depts = ["Waste Dept", "Public Works", "Water Board", "Power Bureau", "Health Dept", "Transport", "Civil", "Parks"]
         
-        # Create 2 rows of 4 columns
         d_cols1 = st.columns(4)
         d_cols2 = st.columns(4)
         all_cols = d_cols1 + d_cols2
@@ -136,16 +133,51 @@ if page == "Overview":
         st.info("The national dashboard is ready. Open your Telegram Bot and send a complaint to populate the UI.")
 
 elif page == "Spatial Map":
-    st.markdown("## 50m Density Hotspots")
+    st.markdown("## Live 50m Density Map")
     if not df.empty and not df['Lat'].isnull().all():
-        st.map(df.dropna(subset=['Lat', 'Lon']).rename(columns={"Lat": "latitude", "Lon": "longitude"}))
+        map_df = df.dropna(subset=['Lat', 'Lon']).rename(columns={"Lat": "latitude", "Lon": "longitude"})
+        mid_lat = map_df['latitude'].mean()
+        mid_lon = map_df['longitude'].mean()
+
+        st.pydeck_chart(pdk.Deck(
+            map_style='mapbox://styles/mapbox/light-v10',
+            initial_view_state=pdk.ViewState(
+                latitude=mid_lat,
+                longitude=mid_lon,
+                zoom=12,
+                pitch=50,
+                bearing=0
+            ),
+            layers=[
+                pdk.Layer(
+                    'ColumnLayer',
+                    data=map_df,
+                    get_position='[longitude, latitude]',
+                    get_elevation=150,
+                    elevation_scale=1,
+                    radius=40,
+                    get_fill_color='[128, 0, 0, 200]',
+                    pickable=True,
+                    auto_highlight=True,
+                ),
+                pdk.Layer(
+                    'ScatterplotLayer',
+                    data=map_df,
+                    get_position='[longitude, latitude]',
+                    get_color='[239, 68, 68, 100]',
+                    get_radius=100,
+                ),
+            ],
+            tooltip={"text": "Incident Hotspot Registered"}
+        ))
+        
+        st.markdown('<div style="text-align: center; color: #666; font-size: 13px;"><i>Hold <b>Shift + Click & Drag</b> to rotate the 3D map camera.</i></div>', unsafe_allow_html=True)
     else:
         st.warning("No GPS locations submitted yet.")
 
 elif page == "All Grievances":
     st.markdown("## Recent Grievances")
     if not df.empty:
-        # Table Styling matching Figma Pill Badges
         def style_status(val):
             if val == "Resolved": return 'background-color: #d1fae5; color: #065f46; font-weight: bold; border-radius: 10px;'
             elif val == "Pending": return 'background-color: #fef3c7; color: #92400e; font-weight: bold; border-radius: 10px;'
@@ -186,7 +218,10 @@ elif page == "All Grievances":
             if st.button("Save & Notify Citizen"):
                 update_ticket_status(sel_id, new_stat)
                 if row["ChatID"] and token:
-                    requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": row["ChatID"], "text": f"🔔 Ticket `{sel_id}` is now {new_stat}."})
+                    requests.post(
+                        f"https://api.telegram.org/bot{token}/sendMessage", 
+                        json={"chat_id": row["ChatID"], "text": f"🔔 Ticket `{sel_id}` is now {new_stat}."}
+                    )
                 st.success("Updated!")
                 st.rerun()
     else:
