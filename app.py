@@ -122,25 +122,12 @@ if page == "Overview":
         st.info("The national dashboard is ready. Open your Telegram Bot and send a complaint to populate the UI.")
 
 elif page == "Spatial Map":
-    st.markdown("## Institutional 50m Density Hotspot Map")
+    st.markdown("## Live 50m Density Hotspot Map")
     if not df.empty and not df['Lat'].isnull().all():
         valid_df = df.dropna(subset=['Lat', 'Lon']).copy()
+        map_df = valid_df.rename(columns={"Lat": "latitude", "Lon": "longitude"})
         
-        fig_map = px.scatter_mapbox(
-            valid_df,
-            lat="Lat",
-            lon="Lon",
-            color="Sev",
-            size_max=16,
-            zoom=13,
-            center={"lat": valid_df['Lat'].mean(), "lon": valid_df['Lon'].mean()},
-            mapbox_style="carto-positron",
-            hover_name="ID",
-            hover_data=["Cat", "Ward", "Status"],
-            color_discrete_map={"🔥 CRITICAL": "#ef4444", "High": "#ef4444", "Medium": "#f59e0b", "Low": "#3b82f6"}
-        )
-        fig_map.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=520)
-        st.plotly_chart(fig_map, use_container_width=True)
+        st.map(map_df)
         
         st.subheader("Coordinates Registry")
         st.dataframe(valid_df[["ID", "Ward", "Cat", "Sev", "Lat", "Lon", "Status"]], use_container_width=True, hide_index=True)
