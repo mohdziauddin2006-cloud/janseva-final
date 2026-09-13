@@ -24,7 +24,6 @@ df = pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 if page == "Overview":
     st.title("Municipal Operations")
     
-    # These will show 0 instead of a blank screen when empty
     total = len(df)
     pending = len(df[df["Status"] == "Pending"]) if not df.empty else 0
     critical = len(df[df["Sev"].astype(str).str.contains("CRITICAL")]) if not df.empty else 0
@@ -67,9 +66,13 @@ elif page == "Action Board":
                     f_info = requests.get(f"https://api.telegram.org/bot{token}/getFile?file_id={row['MediaID']}").json()
                     if f_info.get("ok"):
                         url = f"https://api.telegram.org/file/bot{token}/{f_info['result']['file_path']}"
-                        if row["MediaType"] == "photo": st.image(url, width=300)
-                        elif row["MediaType"] == "video": st.video(url)
-                        elif row["MediaType"] == "voice": st.audio(url)
+                        m_type = str(row["MediaType"]).lower()
+                        
+                        # Added support for animation (GIFs), audio, and documents
+                        if m_type == "photo": st.image(url, width=300)
+                        elif m_type in ["video", "animation"]: st.video(url)
+                        elif m_type in ["voice", "audio"]: st.audio(url)
+                        else: st.markdown(f"[📥 Download Attached File]({url})")
                 except: st.warning("Media load failed.")
         with colB:
             new_stat = st.selectbox("New Status:", ["Pending", "In Progress", "Resolved"])
