@@ -3,18 +3,14 @@ import requests
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import pydeck as pdk
 from backend import get_all_complaints, update_ticket_status
 
 st.set_page_config(page_title="JanSeva National Command", layout="wide")
 
-# Custom CSS matching the Figma AITS design exactly
+# Custom CSS matching institutional Figma design
 st.markdown("""
     <style>
-    /* Background and typography */
     .main { background-color: #f7f7f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    
-    /* Figma KPI Cards */
     .kpi-container {
         background-color: white;
         padding: 16px 20px;
@@ -27,15 +23,11 @@ st.markdown("""
     }
     .kpi-label { font-size: 14px; font-weight: 500; color: #555; display: flex; align-items: center; gap: 8px; }
     .kpi-val { font-size: 24px; font-weight: 700; }
-    
-    /* Specific KPI Colors */
     .val-total { color: #111; }
     .val-pending { color: #f59e0b; }
     .val-review { color: #3b82f6; }
     .val-resolved { color: #10b981; }
     .val-critical { color: #ef4444; }
-    
-    /* Department Grid Cards (Cream Background) */
     .dept-card {
         background-color: #fdfcf7;
         border: 1px solid #f0e6db;
@@ -66,7 +58,6 @@ if page == "Overview":
     st.caption("Grievance Management — National Command Center")
     st.write("")
 
-    # --- KPI CARDS ROW ---
     total = len(df)
     pending = len(df[df["Status"] == "Pending"]) if not df.empty else 0
     review = len(df[df["Status"] == "In Progress"]) if not df.empty else 0
@@ -82,7 +73,6 @@ if page == "Overview":
 
     st.write("<br>", unsafe_allow_html=True)
 
-    # --- CHARTS ROW ---
     if not df.empty:
         col_bar, col_pie = st.columns([1.5, 1])
         with col_bar:
@@ -107,7 +97,6 @@ if page == "Overview":
 
         st.write("<br>", unsafe_allow_html=True)
 
-        # --- DEPARTMENT GRID ---
         st.markdown('<div style="background:white; padding:20px; border-radius:8px; border:1px solid #e8e8e8;"><b>Department-wise Summary</b><br><br>', unsafe_allow_html=True)
         depts = ["Waste Dept", "Public Works", "Water Board", "Power Bureau", "Health Dept", "Transport", "Civil", "Parks"]
         
@@ -133,45 +122,28 @@ if page == "Overview":
         st.info("The national dashboard is ready. Open your Telegram Bot and send a complaint to populate the UI.")
 
 elif page == "Spatial Map":
-    st.markdown("## Live 50m Density Map")
+    st.markdown("## Institutional 50m Density Hotspot Map")
     if not df.empty and not df['Lat'].isnull().all():
-        map_df = df.dropna(subset=['Lat', 'Lon']).rename(columns={"Lat": "latitude", "Lon": "longitude"})
-        mid_lat = map_df['latitude'].mean()
-        mid_lon = map_df['longitude'].mean()
-
-        st.pydeck_chart(pdk.Deck(
-            map_style='mapbox://styles/mapbox/light-v10',
-            initial_view_state=pdk.ViewState(
-                latitude=mid_lat,
-                longitude=mid_lon,
-                zoom=12,
-                pitch=50,
-                bearing=0
-            ),
-            layers=[
-                pdk.Layer(
-                    'ColumnLayer',
-                    data=map_df,
-                    get_position='[longitude, latitude]',
-                    get_elevation=150,
-                    elevation_scale=1,
-                    radius=40,
-                    get_fill_color='[128, 0, 0, 200]',
-                    pickable=True,
-                    auto_highlight=True,
-                ),
-                pdk.Layer(
-                    'ScatterplotLayer',
-                    data=map_df,
-                    get_position='[longitude, latitude]',
-                    get_color='[239, 68, 68, 100]',
-                    get_radius=100,
-                ),
-            ],
-            tooltip={"text": "Incident Hotspot Registered"}
-        ))
+        valid_df = df.dropna(subset=['Lat', 'Lon']).copy()
         
-        st.markdown('<div style="text-align: center; color: #666; font-size: 13px;"><i>Hold <b>Shift + Click & Drag</b> to rotate the 3D map camera.</i></div>', unsafe_allow_html=True)
+        fig_map = px.scatter_mapbox(
+            valid_df,
+            lat="Lat",
+            lon="Lon",
+            color="Sev",
+            size_max=16,
+            zoom=13,
+            center={"lat": valid_df['Lat'].mean(), "lon": valid_df['Lon'].mean()},
+            mapbox_style="carto-positron",
+            hover_name="ID",
+            hover_data=["Cat", "Ward", "Status"],
+            color_discrete_map={"🔥 CRITICAL": "#ef4444", "High": "#ef4444", "Medium": "#f59e0b", "Low": "#3b82f6"}
+        )
+        fig_map.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=520)
+        st.plotly_chart(fig_map, use_container_width=True)
+        
+        st.subheader("Coordinates Registry")
+        st.dataframe(valid_df[["ID", "Ward", "Cat", "Sev", "Lat", "Lon", "Status"]], use_container_width=True, hide_index=True)
     else:
         st.warning("No GPS locations submitted yet.")
 
