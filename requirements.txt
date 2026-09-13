@@ -1,0 +1,7 @@
+streamlit
+pyTelegramBotAPI
+google-genai
+psycopg2-binary
+pandas
+requests
+plotly

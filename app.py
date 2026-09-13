@@ -1,0 +1,72 @@
+import os
+import requests
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from backend import get_all_complaints, update_ticket_status
+
+st.set_page_config(page_title="JanSeva Dashboard", layout="wide")
+st.markdown("""<style>.main { background-color: #f8f9fa; }</style>""", unsafe_allow_html=True)
+
+with st.sidebar:
+    st.title("🏛️ JanSeva AI")
+    page = st.radio("Navigation", ["Overview", "Spatial Map", "Action Board"])
+
+rows = get_all_complaints()
+cols = ["ID", "Time", "ChatID", "User", "RawText", "MediaType", "MediaID", "Lat", "Lon", "Ward", "Cat", "Dept", "Sev", "Sum", "Status"]
+df = pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
+
+if page == "Overview":
+    st.title("Municipal Operations")
+    if not df.empty:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Tickets", len(df))
+        c2.metric("Pending", len(df[df["Status"] == "Pending"]))
+        c3.metric("Critical", len(df[df["Sev"].astype(str).str.contains("CRITICAL")]))
+        
+        st.divider()
+        col1, col2 = st.columns(2)
+        with col1:
+            st.plotly_chart(px.bar(df["Cat"].value_counts().reset_index(), x="Cat", y="count", title="Categories"), use_container_width=True)
+        with col2:
+            st.plotly_chart(px.pie(df["Status"].value_counts().reset_index(), values="count", names="Status", title="Resolution Status"), use_container_width=True)
+
+elif page == "Spatial Map":
+    st.title("50m Density Hotspots")
+    if not df.empty and not df['Lat'].isnull().all():
+        st.map(df.dropna(subset=['Lat', 'Lon']).rename(columns={"Lat": "latitude", "Lon": "longitude"}))
+
+elif page == "Action Board":
+    st.title("Update SLA & Inspect Evidence")
+    if not df.empty:
+        st.dataframe(df[["ID", "Cat", "Sev", "Status", "Sum"]], use_container_width=True, hide_index=True)
+        st.divider()
+        
+        colA, colB = st.columns(2)
+        with colA:
+            sel_id = st.selectbox("Select Ticket ID:", df["ID"])
+            row = df[df["ID"] == sel_id].iloc[0]
+            st.write(f"**Report:** {row['RawText']}")
+            
+            token = os.getenv("TELEGRAM_BOT_TOKEN")
+            if pd.notna(row["MediaID"]) and token:
+                try:
+                    f_info = requests.get(f"https://api.telegram.org/bot{token}/getFile?file_id={row['MediaID']}").json()
+                    if f_info.get("ok"):
+                        url = f"https://api.telegram.org/file/bot{token}/{f_info['result']['file_path']}"
+                        if row["MediaType"] == "photo": st.image(url, width=300)
+                        elif row["MediaType"] == "video": st.video(url)
+                        elif row["MediaType"] == "voice": st.audio(url)
+                except: st.warning("Media load failed.")
+        
+        with colB:
+            new_stat = st.selectbox("New Status:", ["Pending", "In Progress", "Resolved"])
+            if st.button("Update & Notify"):
+                update_ticket_status(sel_id, new_stat)
+                if row["ChatID"] and token:
+                    requests.post(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={"chat_id": row["ChatID"], "text": f"🔔 Ticket `{sel_id}` is now {new_stat}."}
+                    )
+                st.success("Updated!")
+                st.rerun()
