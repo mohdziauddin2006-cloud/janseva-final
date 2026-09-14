@@ -25,15 +25,22 @@ def handle_status(message):
     else:
         bot.reply_to(message, "❌ Ticket not found in Central Database.")
 
-@bot.message_handler(content_types=['text', 'photo', 'video'])
+# Added animation (GIF) and document support
+@bot.message_handler(content_types=['text', 'photo', 'video', 'animation', 'document'])
 def handle_media(message):
     cid = message.chat.id
     if cid not in user_sessions: user_sessions[cid] = {}
     s = user_sessions[cid]
     s["raw_text"] = message.text or message.caption or "Evidence attached."
     
-    if message.photo: s["media_type"], s["media_file_id"] = "photo", message.photo[-1].file_id
-    elif message.video: s["media_type"], s["media_file_id"] = "video", message.video.file_id
+    if message.photo: 
+        s["media_type"], s["media_file_id"] = "photo", message.photo[-1].file_id
+    elif message.video: 
+        s["media_type"], s["media_file_id"] = "video", message.video.file_id
+    elif message.animation: 
+        s["media_type"], s["media_file_id"] = "video", message.animation.file_id
+    elif message.document: 
+        s["media_type"], s["media_file_id"] = "document", message.document.file_id
     
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add(types.KeyboardButton("📍 Share Exact Location", request_location=True))

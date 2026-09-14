@@ -9,38 +9,27 @@ from backend import get_all_complaints, execute_admin_sanction, execute_field_re
 st.set_page_config(page_title="JanSeva DPI - National Grievance Infrastructure", layout="wide", page_icon="🏛️")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# UI Overhaul: Plus Jakarta Sans & Glassmorphism elements
+# UI Overhaul
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    
     * { font-family: 'Plus Jakarta Sans', sans-serif; }
     .main { background-color: #f4f7fb; }
-    
-    .stat-card {
-        background: #ffffff; padding: 24px; border-radius: 12px;
-        border: 1px solid #e2e8f0; border-top: 4px solid #2563eb;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: transform 0.2s ease;
-    }
+    .stat-card { background: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; border-top: 4px solid #2563eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: transform 0.2s ease; }
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08); }
     .stat-label { font-size: 14px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat-val { font-size: 32px; font-weight: 800; color: #0f172a; margin-top: 8px; }
-    
-    .ticket-container {
-        background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
-        padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-    }
-    
+    .ticket-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
     .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 700; }
     .badge-pending { background-color: #fef3c7; color: #b45309; }
     .badge-progress { background-color: #dbeafe; color: #1d4ed8; }
     .badge-resolved { background-color: #dcfce7; color: #15803d; }
     .badge-emergency { background-color: #fee2e2; color: #b91c1c; border: 1px solid #f87171;}
-    
     .timeline-container { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;}
     .step { font-size: 13px; font-weight: 600; color: #94a3b8; text-align: center; flex: 1; position: relative;}
     .step.active { color: #2563eb; font-weight: 800; }
     .step.completed { color: #10b981; }
+    .media-btn { margin-top: 10px; font-size: 14px; font-weight: 600; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -50,7 +39,6 @@ if "dept" not in st.session_state: st.session_state.dept = None
 if "login_attempts" not in st.session_state: st.session_state.login_attempts = 0
 if "lockout_time" not in st.session_state: st.session_state.lockout_time = 0
 
-# Department Routing Directory
 DEPT_DIRECTORY = {
     "Roads": {"office": "State PWD Roads & Bridges Division", "officer": "Er. Rajesh Varma, JE (Civil)"},
     "Water": {"office": "Municipal Water Supply Board", "officer": "Er. K. Ramesh, AEE (Water)"},
@@ -60,7 +48,6 @@ DEPT_DIRECTORY = {
     "Civil": {"office": "Municipal Zonal Engineering Office", "officer": "Er. P. Naidu, Executive Engineer"}
 }
 
-# Role Credentials
 AUTH_DB = {
     "collector": {"pass": "ias@india2026", "role": "admin", "dept": "All"},
     "pwd_roads": {"pass": "pwd@infra2026", "role": "field", "dept": "Roads"},
@@ -77,6 +64,20 @@ def get_telegram_url(file_id):
         if res.get("ok"): return f"https://api.telegram.org/file/bot{BOT_TOKEN}/{res['result']['file_path']}"
     except: pass
     return None
+
+# UNIVERSAL MEDIA RENDERER FIX
+def display_media(file_url, media_type):
+    if not file_url: return
+    m_type = str(media_type).lower()
+    
+    if 'photo' in m_type:
+        st.image(file_url, use_container_width=True)
+    elif 'video' in m_type or 'animation' in m_type:
+        st.video(file_url)
+        # Bulletproof fallback for Telegram streaming limits
+        st.markdown(f"<div class='media-btn'>🎥 <a href='{file_url}' target='_blank'>If video doesn't play, Click Here to View / Download</a></div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='media-btn'>📎 <a href='{file_url}' target='_blank'>Download Attached Evidence File</a></div>", unsafe_allow_html=True)
 
 @st.cache_data(ttl=86400)
 def fetch_address(lat, lon):
@@ -97,7 +98,6 @@ def render_status_badge(status, hours_open=0):
 def render_timeline(status):
     stages = ["1. Pending Review", "2. Survey & Estimation", "3. Administrative Sanction", "4. Tender Awarded", "6. Resolved (Social Audit)"]
     current_idx = next((i for i, s in enumerate(stages) if s[:2] in status[:2]), 0)
-    
     html = '<div class="timeline-container">'
     for i, stage in enumerate(stages):
         cls = "completed" if i < current_idx else "active" if i == current_idx else ""
@@ -133,9 +133,6 @@ if not df.empty:
     df['hours_open'] = (pd.Timestamp.now(tz='UTC') - df['timestamp_dt']).dt.total_seconds() / 3600
     df['category'] = df['category'].fillna("Civil").replace("None", "Civil")
 
-# =========================================================
-# 1. CITIZENS' PUBLIC PORTAL (NO LOGIN)
-# =========================================================
 if page == "🌐 Citizens' Public Portal":
     st.title("Public Transparency & Social Audit Ledger")
     
@@ -175,10 +172,11 @@ if page == "🌐 Citizens' Public Portal":
                 
                 with st.expander(f"View Evidence Media for #{item['id']}"):
                     media_url = get_telegram_url(item['media_file_id'])
-                    if media_url:
-                        if 'photo' in str(item.get('media_type')).lower(): st.image(media_url, width=400)
-                        elif 'video' in str(item.get('media_type')).lower(): st.video(media_url)
-                    else: st.caption("No media attached.")
+                    if media_url: 
+                        # USING NEW DISPLAY METHOD
+                        display_media(media_url, item.get('media_type'))
+                    else: 
+                        st.caption("No media attached.")
 
         with tab_resolved:
             resolved_subset = df[df['status'].str.contains("Resolved", na=False)]
@@ -201,18 +199,15 @@ if page == "🌐 Citizens' Public Portal":
                     with c_before:
                         st.caption("🔴 Before (Citizen Report)")
                         b_url = get_telegram_url(r['media_file_id'])
-                        if b_url: st.image(b_url, use_container_width=True)
+                        if b_url: display_media(b_url, r.get('media_type'))
                     with c_after:
                         st.caption("🟢 After (Govt Proof)")
                         a_url = get_telegram_url(r['resolution_media_id'])
-                        if a_url: st.image(a_url, use_container_width=True)
+                        if a_url: display_media(a_url, 'photo')
                     st.write("---")
             else: st.info("No resolved grievances yet.")
     else: st.info("Database is empty. Submit via Telegram.")
 
-# =========================================================
-# 2. OPEN DATA ANALYTICS (PLOTLY)
-# =========================================================
 elif page == "📊 Open Data Analytics":
     st.title("Live Municipal Analytics")
     if not df.empty:
@@ -227,9 +222,6 @@ elif page == "📊 Open Data Analytics":
             st.plotly_chart(fig2, use_container_width=True)
     else: st.warning("Not enough data to render analytics.")
 
-# =========================================================
-# 3. OFFICER AUTHENTICATION GATEWAY
-# =========================================================
 elif page == "🔐 Officer Gateway":
     st.title("Administrative Access Gateway")
     if time.time() < st.session_state.lockout_time:
@@ -254,9 +246,6 @@ elif page == "🔐 Officer Gateway":
                         else: st.error("Access Denied.")
             st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================================================
-# 4. OFFICER COMMAND DASHBOARD
-# =========================================================
 elif page == "⚙️ Officer Command Dashboard":
     st.title(f"Command Dashboard — {st.session_state.dept.upper()}")
     
@@ -268,7 +257,6 @@ elif page == "⚙️ Officer Command Dashboard":
             sel_id = st.selectbox("Select Grievance to Process:", active_df["id"].tolist())
             row = active_df[active_df["id"] == sel_id].iloc[0]
             
-            # Context & Visual Timeline
             st.markdown(render_timeline(row['status']), unsafe_allow_html=True)
             
             st.markdown(f"""
@@ -278,7 +266,10 @@ elif page == "⚙️ Officer Command Dashboard":
                 </div>
             """, unsafe_allow_html=True)
             
-            # TIER A: ADMIN
+            # Use universal display for Officer view too
+            c_url = get_telegram_url(row['media_file_id'])
+            if c_url: display_media(c_url, row.get('media_type'))
+            
             if st.session_state.role == "admin":
                 with st.form("admin_form"):
                     current_cat = row['category'] if row['category'] in DEPT_DIRECTORY else "Roads"
@@ -302,7 +293,6 @@ elif page == "⚙️ Officer Command Dashboard":
                         st.success("Dispatched successfully!")
                         st.rerun()
 
-            # TIER B: FIELD OFFICER
             elif st.session_state.role == "field":
                 st.info(f"💰 **Locked Budget:** ₹{row['budget_allocated']:,.0f} | **Contractor:** {row.get('contractor_name') or 'Internal'}")
                 with st.form("field_form"):
