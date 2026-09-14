@@ -1,4 +1,6 @@
-import os, time, telebot
+import os
+import time
+import telebot
 from telebot import types
 from backend import save_grievance, get_all_complaints
 
@@ -9,7 +11,7 @@ user_sessions = {}
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     user_sessions[message.chat.id] = {"raw_text": None, "media_type": None, "media_file_id": None}
-    bot.reply_to(message, "🏛️ **JanSeva DPI**\nDescribe the issue, upload a photo/video, or reply `STATUS <Ticket-ID>`:")
+    bot.reply_to(message, "🏛️ **JanSeva DPI**\nWelcome. Describe the public issue, upload a photo/video, or reply `STATUS <Ticket-ID>` to track an existing grievance:")
 
 @bot.message_handler(func=lambda msg: msg.text and msg.text.strip().upper().startswith("STATUS"))
 def handle_status(message):
@@ -21,7 +23,7 @@ def handle_status(message):
     if ticket:
         bot.reply_to(message, f"📋 **Ticket:** `{tid}`\n🚥 **Stage:** {ticket['status']}\n🏢 **Office:** {ticket['office_name']}\n👤 **Officer:** {ticket['assigned_officer']}\n⚡ **Priority:** {ticket['severity']}", parse_mode="Markdown")
     else:
-        bot.reply_to(message, "❌ Ticket not found.")
+        bot.reply_to(message, "❌ Ticket not found in Central Database.")
 
 @bot.message_handler(content_types=['text', 'photo', 'video'])
 def handle_media(message):
@@ -35,7 +37,7 @@ def handle_media(message):
     
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add(types.KeyboardButton("📍 Share Exact Location", request_location=True))
-    bot.send_message(cid, "Evidence saved. Share GPS location for spatial routing:", reply_markup=markup)
+    bot.send_message(cid, "Evidence buffered successfully. Please share your live GPS location for precise spatial routing:", reply_markup=markup)
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
