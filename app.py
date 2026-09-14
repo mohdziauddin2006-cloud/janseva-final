@@ -2,186 +2,181 @@ import os
 import requests
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from backend import get_all_complaints, update_ticket_status
+from backend import get_all_complaints, execute_admin_sanction, execute_field_resolution
 
-st.set_page_config(page_title="JanSeva National Command", layout="wide")
+st.set_page_config(page_title="JanSeva DPI", layout="wide", page_icon="🏛️")
 
-# Custom CSS matching institutional Figma design
+# Figma-Style UI Tokens
 st.markdown("""
     <style>
-    .main { background-color: #f7f7f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    .kpi-container {
-        background-color: white;
-        padding: 16px 20px;
-        border-radius: 8px;
-        border: 1px solid #e8e8e8;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .kpi-label { font-size: 14px; font-weight: 500; color: #555; display: flex; align-items: center; gap: 8px; }
-    .kpi-val { font-size: 24px; font-weight: 700; }
-    .val-total { color: #111; }
-    .val-pending { color: #f59e0b; }
-    .val-review { color: #3b82f6; }
-    .val-resolved { color: #10b981; }
-    .val-critical { color: #ef4444; }
-    .dept-card {
-        background-color: #fdfcf7;
-        border: 1px solid #f0e6db;
-        border-radius: 8px;
-        padding: 16px;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    .dept-title { color: #800000; font-weight: 700; font-size: 16px; margin-bottom: 4px; }
-    .dept-stat { font-size: 12px; color: #666; margin-bottom: 2px; }
-    .dept-res { font-size: 12px; color: #10b981; font-weight: 600; }
+    .main { background-color: #f4f7f6; font-family: 'Inter', sans-serif; }
+    .metric-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; border-top: 4px solid #0f172a; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+    .metric-label { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-value { font-size: 28px; font-weight: 800; color: #0f172a; }
+    .audit-card { background: white; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
-with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/5/55/Emblem_of_India.svg", width=65)
-    st.title("JanSeva AI")
-    st.caption("National Grievance Portal")
-    st.divider()
-    page = st.radio("Navigation", ["Overview", "Spatial Map", "All Grievances"])
+# Authentication State
+if "role" not in st.session_state: st.session_state.role = "public"
 
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Data Ingestion & Formatting
 rows = get_all_complaints()
-cols = ["ID", "Time", "ChatID", "User", "RawText", "MediaType", "MediaID", "Lat", "Lon", "Ward", "Cat", "Dept", "Sev", "Sum", "Status"]
+cols = ["ID", "Time", "ChatID", "User", "RawText", "MediaType", "MediaID", "Lat", "Lon", "Cat", "Sev", "Sum", "Status", "Office", "Officer", "BudgetAlloc", "AmtSpent", "Contractor", "Materials", "ResMediaID", "ResTime"]
 df = pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols)
 
-if page == "Overview":
-    st.markdown("## Admin Dashboard")
-    st.caption("Grievance Management — National Command Center")
-    st.write("")
+if not df.empty:
+    df['BudgetAlloc'] = pd.to_numeric(df['BudgetAlloc']).fillna(0)
+    df['AmtSpent'] = pd.to_numeric(df['AmtSpent']).fillna(0)
 
-    total = len(df)
-    pending = len(df[df["Status"] == "Pending"]) if not df.empty else 0
-    review = len(df[df["Status"] == "In Progress"]) if not df.empty else 0
-    resolved = len(df[df["Status"] == "Resolved"]) if not df.empty else 0
-    critical = len(df[df["Sev"].astype(str).str.contains("CRITICAL")]) if not df.empty else 0
+# Sidebar Routing
+with st.sidebar:
+    st.image("https://upload.wikimedia.org/wikipedia/commons/5/55/Emblem_of_India.svg", width=60)
+    st.title("JanSeva DPI")
+    st.caption("Digital Public Infrastructure")
+    st.divider()
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.markdown(f'<div class="kpi-container"><div class="kpi-label">📄 Total</div><div class="kpi-val val-total">{total}</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="kpi-container"><div class="kpi-label"><span style="color:#f59e0b;">🕒</span> Pending</div><div class="kpi-val val-pending">{pending}</div></div>', unsafe_allow_html=True)
-    c3.markdown(f'<div class="kpi-container"><div class="kpi-label"><span style="color:#3b82f6;">👁️</span> In Review</div><div class="kpi-val val-review">{review}</div></div>', unsafe_allow_html=True)
-    c4.markdown(f'<div class="kpi-container"><div class="kpi-label"><span style="color:#10b981;">✅</span> Resolved</div><div class="kpi-val val-resolved">{resolved}</div></div>', unsafe_allow_html=True)
-    c5.markdown(f'<div class="kpi-container"><div class="kpi-label"><span style="color:#ef4444;">🚨</span> Critical</div><div class="kpi-val val-critical">{critical}</div></div>', unsafe_allow_html=True)
+    if st.session_state.role == "public":
+        st.subheader("Public Audit Mode")
+        page = st.radio("Navigation", ["🌐 Social Audit Ledger", "📍 Jurisdictional Map"])
+        st.divider()
+        with st.form("login"):
+            st.caption("Secure Portal Access")
+            user = st.text_input("GovID")
+            pwd = st.text_input("Passkey", type="password")
+            if st.form_submit_button("Authenticate"):
+                if user == "admin" and pwd == "admin123":
+                    st.session_state.role = "executive"
+                    st.rerun()
+                elif user == "field" and pwd == "field123":
+                    st.session_state.role = "field_officer"
+                    st.rerun()
+                else:
+                    st.error("Invalid GovID")
+    else:
+        st.success(f"🔐 Secured as: {st.session_state.role.upper()}")
+        if st.session_state.role == "executive":
+            page = st.radio("Navigation", ["🏛️ Executive Sanctions", "🌐 Social Audit Ledger"])
+        else:
+            page = st.radio("Navigation", ["👷 Field Execution (MB)", "🌐 Social Audit Ledger"])
+        if st.button("Logout"):
+            st.session_state.role = "public"
+            st.rerun()
 
-    st.write("<br>", unsafe_allow_html=True)
-
+# -------------------------------------------------------------
+# TIER 1: PUBLIC TRANSPARENCY (SOCIAL AUDIT)
+# -------------------------------------------------------------
+if page == "🌐 Social Audit Ledger":
+    st.title("Citizens' Social Audit Ledger")
+    st.caption("End-to-end transparency: Track physical resolutions, engineering specifications, and fiscal spending.")
+    
     if not df.empty:
-        col_bar, col_pie = st.columns([1.5, 1])
-        with col_bar:
-            st.markdown('<div style="background:white; padding:15px; border-radius:8px; border:1px solid #e8e8e8;"><b>Grievances by Category</b><br>', unsafe_allow_html=True)
-            cat_df = df["Cat"].value_counts().reset_index()
-            cat_df.columns = ["Category", "Count"]
-            fig_bar = px.bar(cat_df, x="Category", y="Count", color_discrete_sequence=["#800000"])
-            fig_bar.update_layout(plot_bgcolor="white", paper_bgcolor="white", margin=dict(t=20, l=0, r=0, b=0), height=280)
-            fig_bar.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
-            st.plotly_chart(fig_bar, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with col_pie:
-            st.markdown('<div style="background:white; padding:15px; border-radius:8px; border:1px solid #e8e8e8;"><b>Status Distribution</b><br>', unsafe_allow_html=True)
-            status_df = df["Status"].value_counts().reset_index()
-            status_df.columns = ["Status", "Count"]
-            color_map = {"Resolved": "#10b981", "Pending": "#f59e0b", "In Progress": "#3b82f6"}
-            fig_pie = px.pie(status_df, values="Count", names="Status", color="Status", color_discrete_map=color_map, hole=0.0)
-            fig_pie.update_layout(margin=dict(t=20, l=0, r=0, b=0), height=280, showlegend=True)
-            st.plotly_chart(fig_pie, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
+        c1, c2, c3 = st.columns(3)
+        resolved = df[df["Status"].str.contains("Resolved")]
+        c1.markdown(f'<div class="metric-card"><div class="metric-label">Total Projects Sanctioned</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="metric-card"><div class="metric-label">Public Funds Allocated</div><div class="metric-value">₹{df["BudgetAlloc"].sum():,.0f}</div></div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="metric-card"><div class="metric-label">Completed & Audited</div><div class="metric-value" style="color:#10b981;">{len(resolved)}</div></div>', unsafe_allow_html=True)
+        
         st.write("<br>", unsafe_allow_html=True)
-
-        st.markdown('<div style="background:white; padding:20px; border-radius:8px; border:1px solid #e8e8e8;"><b>Department-wise Summary</b><br><br>', unsafe_allow_html=True)
-        depts = ["Waste Dept", "Public Works", "Water Board", "Power Bureau", "Health Dept", "Transport", "Civil", "Parks"]
         
-        d_cols1 = st.columns(4)
-        d_cols2 = st.columns(4)
-        all_cols = d_cols1 + d_cols2
-        
-        for i, d in enumerate(depts):
-            d_total = len(df[df["Dept"].astype(str).str.contains(d, case=False)])
-            d_res = len(df[(df["Dept"].astype(str).str.contains(d, case=False)) & (df["Status"] == "Resolved")])
-            rate = int((d_res / d_total * 100)) if d_total > 0 else 0
-            
-            with all_cols[i]:
+        for _, row in df.iterrows():
+            with st.container():
                 st.markdown(f'''
-                    <div class="dept-card">
-                        <div class="dept-title">{d.upper()}</div>
-                        <div class="dept-stat">{d_total} total</div>
-                        <div class="dept-res">{rate}% resolved</div>
+                    <div class="audit-card">
+                        <h4 style="margin:0; color:#0f172a;">{row['Office']}</h4>
+                        <span style="color:#64748b; font-size:14px;">Ticket: {row['ID']} | Current Stage: <b>{row['Status']}</b></span>
+                        <hr style="margin:10px 0;">
+                        <div style="display:flex; justify-content:space-between; font-size:14px;">
+                            <div><b>Officer:</b> {row['Officer']}</div>
+                            <div><b>Contractor:</b> {row['Contractor'] if row['Contractor'] else 'Awaiting Tender'}</div>
+                            <div><b>Allocated:</b> ₹{row['BudgetAlloc']:,.0f}</div>
+                            <div><b>Spent:</b> ₹{row['AmtSpent']:,.0f}</div>
+                        </div>
                     </div>
                 ''', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Show Proof for Resolved
+                if "Resolved" in row["Status"] and pd.notna(row["ResMediaID"]) and BOT_TOKEN:
+                    try:
+                        f_info = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={row['ResMediaID']}").json()
+                        url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_info['result']['file_path']}"
+                        st.image(url, width=400, caption=f"Physical Completion Proof | Materials: {row['Materials']}")
+                    except: pass
     else:
-        st.info("The national dashboard is ready. Open your Telegram Bot and send a complaint to populate the UI.")
+        st.info("Central ledger is currently empty.")
 
-elif page == "Spatial Map":
-    st.markdown("## Live 50m Density Hotspot Map")
-    if not df.empty and not df['Lat'].isnull().all():
-        valid_df = df.dropna(subset=['Lat', 'Lon']).copy()
-        map_df = valid_df.rename(columns={"Lat": "latitude", "Lon": "longitude"})
+# -------------------------------------------------------------
+# TIER 2: EXECUTIVE COMMAND (ADMIN SANCTION)
+# -------------------------------------------------------------
+elif page == "🏛️ Executive Sanctions":
+    st.title("Executive Command: Admin & Technical Sanction")
+    st.caption("Release budgets and float tenders. You cannot modify physical execution or upload proof.")
+    
+    active_df = df[~df["Status"].str.contains("Resolved")] if not df.empty else pd.DataFrame()
+    
+    if not active_df.empty:
+        sel_id = st.selectbox("Select Project for Sanction:", active_df["ID"])
+        row = active_df[active_df["ID"] == sel_id].iloc[0]
         
-        st.map(map_df)
+        st.write(f"**Jurisdiction:** {row['Office']} | **Request:** {row['RawText']}")
         
-        st.subheader("Coordinates Registry")
-        st.dataframe(valid_df[["ID", "Ward", "Cat", "Sev", "Lat", "Lon", "Status"]], use_container_width=True, hide_index=True)
-    else:
-        st.warning("No GPS locations submitted yet.")
-
-elif page == "All Grievances":
-    st.markdown("## Recent Grievances")
-    if not df.empty:
-        def style_status(val):
-            if val == "Resolved": return 'background-color: #d1fae5; color: #065f46; font-weight: bold; border-radius: 10px;'
-            elif val == "Pending": return 'background-color: #fef3c7; color: #92400e; font-weight: bold; border-radius: 10px;'
-            else: return 'background-color: #dbeafe; color: #1e40af; font-weight: bold; border-radius: 10px;'
+        with st.form("executive_form"):
+            new_stage = st.selectbox("Advance Policy Lifecycle:", [
+                "2. Preliminary Survey", "3. Administrative Sanction", "4. Tender Awarded"
+            ], index=0)
             
-        def style_priority(val):
-            if "CRITICAL" in str(val) or "High" in str(val): return 'color: #ef4444; font-weight: bold;'
-            elif "Medium" in str(val): return 'color: #f59e0b; font-weight: bold;'
-            else: return 'color: #3b82f6; font-weight: bold;'
-
-        display_df = df[["ID", "User", "Sum", "Cat", "Status", "Sev", "Time"]].copy()
-        display_df.columns = ["ID", "Citizen", "Subject", "Category", "Status", "Priority", "Date"]
-        
-        styled_table = display_df.style.map(style_status, subset=['Status']).map(style_priority, subset=['Priority'])
-        st.dataframe(styled_table, use_container_width=True, hide_index=True)
-        
-        st.divider()
-        st.markdown("### Action Panel")
-        colA, colB = st.columns(2)
-        with colA:
-            sel_id = st.selectbox("Select Ticket ID:", df["ID"])
-            row = df[df["ID"] == sel_id].iloc[0]
-            st.write(f"**Report:** {row['RawText']}")
-            token = os.getenv("TELEGRAM_BOT_TOKEN")
-            if pd.notna(row["MediaID"]) and token:
-                try:
-                    f_info = requests.get(f"https://api.telegram.org/bot{token}/getFile?file_id={row['MediaID']}").json()
-                    if f_info.get("ok"):
-                        url = f"https://api.telegram.org/file/bot{token}/{f_info['result']['file_path']}"
-                        m_type = str(row["MediaType"]).lower()
-                        if m_type == "photo": st.image(url, width=300)
-                        elif m_type in ["video", "animation"]: st.video(url)
-                        elif m_type in ["voice", "audio"]: st.audio(url)
-                        else: st.markdown(f"[📥 Download Attached File]({url})")
-                except: st.warning("Media load failed.")
-        with colB:
-            new_stat = st.selectbox("Update SLA Status:", ["Pending", "In Progress", "Resolved"])
-            if st.button("Save & Notify Citizen"):
-                update_ticket_status(sel_id, new_stat)
-                if row["ChatID"] and token:
-                    requests.post(
-                        f"https://api.telegram.org/bot{token}/sendMessage", 
-                        json={"chat_id": row["ChatID"], "text": f"🔔 Ticket `{sel_id}` is now {new_stat}."}
-                    )
-                st.success("Updated!")
+            budget = st.number_input("Sanction Budget (₹)", value=float(row['BudgetAlloc']), step=5000.0)
+            contractor = st.text_input("Awarded Contractor / Agency", value=str(row['Contractor']) if pd.notna(row['Contractor']) else "")
+            
+            if st.form_submit_button("Lock Sanction & Dispatch to Field"):
+                execute_admin_sanction(sel_id, new_stage, budget, contractor)
+                if row["ChatID"] and BOT_TOKEN:
+                    msg = f"🏛️ **JanSeva Gov Update**\n🎫 Ticket `{sel_id}` advanced to:\n🚥 **{new_stage}**\n💰 Sanctioned: ₹{budget:,.2f}"
+                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": row["ChatID"], "text": msg})
+                st.success("Sanction officially locked in ledger.")
                 st.rerun()
     else:
-        st.info("No tickets to manage yet.")
+        st.success("No pending policy actions.")
+
+# -------------------------------------------------------------
+# TIER 3: FIELD OFFICER COMMAND (MEASUREMENT BOOK)
+# -------------------------------------------------------------
+elif page == "👷 Field Execution (MB)":
+    st.title("Field Engineering: Measurement Book & Handover")
+    st.caption("Upload physical proof, log materials, and finalize expenditure. You cannot alter sanctioned budgets.")
+    
+    # Field officer only works on Tendered projects
+    field_df = df[df["Status"].str.contains("4. Tender Awarded|5. In Execution")] if not df.empty else pd.DataFrame()
+    
+    if not field_df.empty:
+        sel_id = st.selectbox("Select Assigned Project:", field_df["ID"])
+        row = field_df[field_df["ID"] == sel_id].iloc[0]
+        
+        st.info(f"💰 **Locked Sanction Budget:** ₹{row['BudgetAlloc']:,.2f} | **Contractor:** {row['Contractor']}")
+        
+        with st.form("field_form"):
+            materials = st.text_area("Measurement Book (BOQ/Materials Consumed)", placeholder="e.g., Bitumen VG-30, M25 Concrete...")
+            spent = st.number_input("Final Treasury Payout (Amount Spent ₹)", value=float(row['BudgetAlloc']), step=1000.0)
+            proof_img = st.file_uploader("Upload Photographic Proof of Execution", type=['jpg', 'png'])
+            
+            if st.form_submit_button("Finalize MB & Submit to Social Audit"):
+                media_id = None
+                if proof_img and row["ChatID"] and BOT_TOKEN:
+                    caption = f"✅ **Project Executed!**\n🎫 Ticket: `{sel_id}`\n🏢 {row['Office']}\n📉 Total Cost: ₹{spent:,.2f}\n📦 BOQ: {materials}"
+                    res = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto", data={'chat_id': row["ChatID"], 'caption': caption}, files={'photo': proof_img.getvalue()}).json()
+                    if res.get("ok"): media_id = res['result']['photo'][-1]['file_id']
+                
+                execute_field_resolution(sel_id, spent, materials, media_id)
+                st.success("Measurement Book locked. Handed over to Public Social Audit.")
+                st.rerun()
+    else:
+        st.success("No assigned tasks pending physical execution.")
+
+elif page == "📍 Jurisdictional Map":
+    st.title("Live Geospatial Map")
+    if not df.empty and not df['Lat'].isnull().all():
+        st.map(df.dropna(subset=['Lat', 'Lon']).rename(columns={"Lat": "latitude", "Lon": "longitude"}))
+    else:
+        st.warning("No geospatial telemetry available.")

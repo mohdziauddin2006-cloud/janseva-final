@@ -1,5 +1,4 @@
 import os, sys, time, subprocess
-
 def start_bot(): return subprocess.Popen([sys.executable, "bot.py"])
 def start_web(): 
     port = os.getenv("PORT", "8501")
