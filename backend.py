@@ -35,18 +35,24 @@ def analyze_and_route(text):
     prompt = f"""
     Analyze this civic grievance: "{text}"
     Generate a JSON object:
-    - "category": Must be one of [Sanitation, Roads, Water, Electricity, Health, Cyber Crime, Civil]
+    - "category": Must be strictly one of [Roads, Water, Electricity, Sanitation, Cyber Crime, Civil]
     - "severity": "High" | "Medium" | "Low"
     - "summary": 1 concise sentence
-    - "office_name": The exact statutory body (e.g., "State PWD Highway Division", "Water Supply Board").
-    - "assigned_officer": A realistic title (e.g., "Er. S. Reddy, JE", "Inspector K. Sharma").
+    - "office_name": The exact statutory body (e.g., "State PWD Roads Division", "Water Supply & Sewerage Board").
+    - "assigned_officer": A realistic title (e.g., "Er. S. Reddy, JE (Civil)", "Inspector K. Sharma").
     """
     try:
         response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         clean = response.text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
-    except:
-        return {"category": "Civil", "severity": "Medium", "summary": text[:80], "office_name": "Municipal Branch", "assigned_officer": "Nodal Officer"}
+    except Exception:
+        return {
+            "category": "Civil",
+            "severity": "Medium",
+            "summary": text[:80] if text else "Civic issue",
+            "office_name": "Municipal Engineering Division",
+            "assigned_officer": "Nodal Officer"
+        }
 
 def save_grievance(chat_id, user_name, raw_text, media_type, media_file_id, lat, lon):
     init_db()
@@ -79,10 +85,19 @@ def get_all_complaints():
     conn.close()
     return [dict(zip(cols, row)) for row in rows]
 
-def execute_admin_sanction(ticket_id, status, budget, contractor):
+def execute_admin_sanction(ticket_id, status, budget, contractor, category, office_name, assigned_officer):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("UPDATE janseva_tickets SET status = %s, budget_allocated = %s, contractor_name = %s WHERE id = %s", (status, budget, contractor, ticket_id))
+    cur.execute("""
+        UPDATE janseva_tickets 
+        SET status = %s, 
+            budget_allocated = %s, 
+            contractor_name = %s,
+            category = %s,
+            office_name = %s,
+            assigned_officer = %s
+        WHERE id = %s
+    """, (status, budget, contractor, category, office_name, assigned_officer, ticket_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -90,7 +105,15 @@ def execute_admin_sanction(ticket_id, status, budget, contractor):
 def execute_field_resolution(ticket_id, spent, materials, media_id):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("UPDATE janseva_tickets SET status = '6. Resolved (Social Audit)', amount_spent = %s, materials_used = %s, resolution_media_id = %s, resolved_at = NOW() WHERE id = %s", (spent, materials, media_id, ticket_id))
+    cur.execute("""
+        UPDATE janseva_tickets 
+        SET status = '6. Resolved (Social Audit)', 
+            amount_spent = %s, 
+            materials_used = %s, 
+            resolution_media_id = %s, 
+            resolved_at = NOW() 
+        WHERE id = %s
+    """, (spent, materials, media_id, ticket_id))
     conn.commit()
     cur.close()
     conn.close()
