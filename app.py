@@ -19,7 +19,7 @@ st.markdown("""
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08); }
     .stat-label { font-size: 14px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat-val { font-size: 32px; font-weight: 800; color: #0f172a; margin-top: 8px; }
-    .ticket-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+    .ticket-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 700; }
     .badge-pending { background-color: #fef3c7; color: #b45309; }
     .badge-progress { background-color: #dbeafe; color: #1d4ed8; }
@@ -30,6 +30,7 @@ st.markdown("""
     .step.active { color: #2563eb; font-weight: 800; }
     .step.completed { color: #10b981; }
     .media-btn { margin-top: 10px; font-size: 14px; font-weight: 600; }
+    .photo-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -58,24 +59,22 @@ AUTH_DB = {
 }
 
 def get_telegram_url(file_id):
-    if not file_id or not BOT_TOKEN: return None
+    if not file_id or str(file_id).lower() == 'none' or not BOT_TOKEN: return None
     try:
         res = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}", timeout=3).json()
         if res.get("ok"): return f"https://api.telegram.org/file/bot{BOT_TOKEN}/{res['result']['file_path']}"
     except: pass
     return None
 
-# UNIVERSAL MEDIA RENDERER FIX
 def display_media(file_url, media_type):
     if not file_url: return
     m_type = str(media_type).lower()
     
-    if 'photo' in m_type:
+    if 'photo' in m_type or media_type is None:
         st.image(file_url, use_container_width=True)
     elif 'video' in m_type or 'animation' in m_type:
         st.video(file_url)
-        # Bulletproof fallback for Telegram streaming limits
-        st.markdown(f"<div class='media-btn'>🎥 <a href='{file_url}' target='_blank'>If video doesn't play, Click Here to View / Download</a></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='media-btn'>🎥 <a href='{file_url}' target='_blank'>If video doesn't play, Click Here</a></div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='media-btn'>📎 <a href='{file_url}' target='_blank'>Download Attached Evidence File</a></div>", unsafe_allow_html=True)
 
@@ -131,7 +130,10 @@ if not df.empty:
     df['amount_spent'] = pd.to_numeric(df.get('amount_spent', 0)).fillna(0)
     df['timestamp_dt'] = pd.to_datetime(df['timestamp'], errors='coerce')
     df['hours_open'] = (pd.Timestamp.now(tz='UTC') - df['timestamp_dt']).dt.total_seconds() / 3600
-    df['category'] = df['category'].fillna("Civil").replace("None", "Civil")
+    df['category'] = df['category'].astype(str).replace(['nan', 'None'], 'Civil')
+    df['office_name'] = df['office_name'].astype(str).replace(['nan', 'None', ''], 'Pending Assignment')
+    df['assigned_officer'] = df['assigned_officer'].astype(str).replace(['nan', 'None', ''], 'Awaiting Nodal Officer')
+    df['materials_used'] = df['materials_used'].astype(str).replace(['nan', 'None', ''], 'Standard operations.')
 
 if page == "🌐 Citizens' Public Portal":
     st.title("Public Transparency & Social Audit Ledger")
@@ -150,6 +152,7 @@ if page == "🌐 Citizens' Public Portal":
             for _, item in df.iterrows():
                 time_str = item['timestamp_dt'].strftime('%d %b %Y, %I:%M %p')
                 loc_str = fetch_address(item['lat'], item['lon'])
+                is_resolved = "Resolved" in item['status']
                 
                 st.markdown(f"""
                     <div class="ticket-container">
@@ -161,22 +164,39 @@ if page == "🌐 Citizens' Public Portal":
                             <b>Issue:</b> {item['raw_text']}<br><b>Location:</b> {loc_str}
                         </div>
                         <hr style="border-top:1px solid #f1f5f9;">
-                        <div style="display:flex; gap:20px; font-size:13px; color:#475569;">
+                        <div style="display:flex; gap:20px; font-size:13px; color:#475569; margin-bottom: 15px;">
                             <div><b>Dept:</b> {item['category']}</div>
                             <div><b>Office:</b> {item['office_name']}</div>
                             <div><b>Officer:</b> {item['assigned_officer']}</div>
                             <div><b>Budget:</b> ₹{item['budget_allocated']:,.0f}</div>
                         </div>
-                    </div>
                 """, unsafe_allow_html=True)
                 
-                with st.expander(f"View Evidence Media for #{item['id']}"):
-                    media_url = get_telegram_url(item['media_file_id'])
-                    if media_url: 
-                        # USING NEW DISPLAY METHOD
-                        display_media(media_url, item.get('media_type'))
-                    else: 
-                        st.caption("No media attached.")
+                # 🚨 UNMISSABLE PHOTO DISPLAY 🚨
+                # If resolved, show photos wide open. If pending, put in expander to save space.
+                if is_resolved:
+                    st.markdown("##### 📸 Official Resolution Evidence")
+                    col_ev1, col_ev2 = st.columns(2)
+                    with col_ev1:
+                        st.markdown('<div class="photo-box"><b>🔴 Citizen Report (Before)</b>', unsafe_allow_html=True)
+                        c_url = get_telegram_url(item.get('media_file_id'))
+                        if c_url: display_media(c_url, item.get('media_type'))
+                        else: st.caption("No initial media.")
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                    with col_ev2:
+                        st.markdown('<div class="photo-box"><b style="color:#15803d;">🟢 Gov Resolution (After)</b>', unsafe_allow_html=True)
+                        r_url = get_telegram_url(item.get('resolution_media_id'))
+                        if r_url: display_media(r_url, 'photo')
+                        else: st.caption("Officer did not attach photo.")
+                        st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    with st.expander(f"View Citizen Evidence Media for #{item['id']}"):
+                        media_url = get_telegram_url(item.get('media_file_id'))
+                        if media_url: display_media(media_url, item.get('media_type'))
+                        else: st.caption("No media attached.")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
 
         with tab_resolved:
             resolved_subset = df[df['status'].str.contains("Resolved", na=False)]
@@ -186,25 +206,29 @@ if page == "🌐 Citizens' Public Portal":
                         <div class="ticket-container">
                             <div style="display:flex; justify-content:space-between;">
                                 <span style="font-weight:800; font-size:16px;">{r['category']} — {r['office_name']}</span>
-                                <span style="font-size:14px; color:#15803d; font-weight:700;">✅ Audited</span>
+                                <span style="font-size:14px; color:#15803d; font-weight:700;">✅ Audited & Verified</span>
                             </div>
                             <div style="margin-top:10px; font-size:14px; color:#334155;">
-                                <b>Resolution / BOQ:</b> {r.get('materials_used') or 'Standard operations.'}<br>
+                                <b>Resolution / BOQ:</b> {r['materials_used']}<br>
                                 <b>Fiscal Audit:</b> Sanctioned ₹{r['budget_allocated']:,.0f} | Actual Spent: <b style="color:#2563eb;">₹{r['amount_spent']:,.0f}</b>
                             </div>
-                        </div>
+                            <hr>
                     """, unsafe_allow_html=True)
                     
                     c_before, c_after = st.columns(2)
                     with c_before:
-                        st.caption("🔴 Before (Citizen Report)")
-                        b_url = get_telegram_url(r['media_file_id'])
+                        st.markdown('<div class="photo-box"><b>🔴 Before (Citizen)</b>', unsafe_allow_html=True)
+                        b_url = get_telegram_url(r.get('media_file_id'))
                         if b_url: display_media(b_url, r.get('media_type'))
+                        else: st.caption("No photo.")
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with c_after:
-                        st.caption("🟢 After (Govt Proof)")
-                        a_url = get_telegram_url(r['resolution_media_id'])
+                        st.markdown('<div class="photo-box"><b style="color:#15803d;">🟢 After (Officer Proof)</b>', unsafe_allow_html=True)
+                        a_url = get_telegram_url(r.get('resolution_media_id'))
                         if a_url: display_media(a_url, 'photo')
-                    st.write("---")
+                        else: st.caption("No photo.")
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
             else: st.info("No resolved grievances yet.")
     else: st.info("Database is empty. Submit via Telegram.")
 
@@ -266,8 +290,7 @@ elif page == "⚙️ Officer Command Dashboard":
                 </div>
             """, unsafe_allow_html=True)
             
-            # Use universal display for Officer view too
-            c_url = get_telegram_url(row['media_file_id'])
+            c_url = get_telegram_url(row.get('media_file_id'))
             if c_url: display_media(c_url, row.get('media_type'))
             
             if st.session_state.role == "admin":
@@ -301,12 +324,15 @@ elif page == "⚙️ Officer Command Dashboard":
                     proof = st.file_uploader("Upload Photographic Resolution Proof:", type=['jpg', 'jpeg', 'png'])
                     
                     if st.form_submit_button("Submit Resolution Proof", type="primary", use_container_width=True):
-                        if not proof: st.error("Proof photograph is mandatory.")
+                        if not proof: st.error("❌ Proof photograph is mandatory. You cannot resolve a ticket without uploading evidence.")
                         else:
                             media_id = None
                             if pd.notna(row['chat_id']) and BOT_TOKEN:
                                 res = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto", data={"chat_id": row['chat_id'], "caption": f"✅ **Resolved!**\nTicket: `{sel_id}`\nSpent: ₹{spent:,.0f}"}, files={"photo": proof.getvalue()}).json()
-                                if res.get("ok"): media_id = res["result"]["photo"][-1]["file_id"]
+                                if res.get("ok"): 
+                                    media_id = res["result"]["photo"][-1]["file_id"]
+                                else:
+                                    st.warning("⚠️ Warning: Photo failed to push to Citizen's Telegram, but system will still mark as resolved.")
                             execute_field_resolution(sel_id, spent, materials, media_id)
                             st.success("Work verified and published to Social Audit.")
                             st.rerun()
