@@ -31,7 +31,7 @@ def init_db():
         cur.close()
         conn.close()
     except Exception as e:
-        print(f"DB Init Error: {e}")
+        print(f"DB Error: {e}")
 
 def analyze_and_route(text):
     client = genai.Client(api_key=GEMINI_API_KEY)

@@ -11,7 +11,12 @@ user_sessions = {}
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     user_sessions[message.chat.id] = {"raw_text": None, "media_type": None, "media_file_id": None}
-    bot.reply_to(message, "🏛️ **JanSeva DPI**\nWelcome. Describe the public issue, upload a photo/video, or reply `STATUS <Ticket-ID>` to track an existing grievance:")
+    welcome_msg = (
+        "🇮🇳 **Government of India | JanSeva DPI**\n\n"
+        "Welcome to the National Grievance Infrastructure. "
+        "Please describe the public infrastructure issue, upload a photo/video, or reply `STATUS <Ticket-ID>` to track an existing grievance."
+    )
+    bot.reply_to(message, welcome_msg, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.text and msg.text.strip().upper().startswith("STATUS"))
 def handle_status(message):
@@ -25,7 +30,6 @@ def handle_status(message):
     else:
         bot.reply_to(message, "❌ Ticket not found in Central Database.")
 
-# Added animation (GIF) and document support
 @bot.message_handler(content_types=['text', 'photo', 'video', 'animation', 'document'])
 def handle_media(message):
     cid = message.chat.id
@@ -33,18 +37,14 @@ def handle_media(message):
     s = user_sessions[cid]
     s["raw_text"] = message.text or message.caption or "Evidence attached."
     
-    if message.photo: 
-        s["media_type"], s["media_file_id"] = "photo", message.photo[-1].file_id
-    elif message.video: 
-        s["media_type"], s["media_file_id"] = "video", message.video.file_id
-    elif message.animation: 
-        s["media_type"], s["media_file_id"] = "video", message.animation.file_id
-    elif message.document: 
-        s["media_type"], s["media_file_id"] = "document", message.document.file_id
+    if message.photo: s["media_type"], s["media_file_id"] = "photo", message.photo[-1].file_id
+    elif message.video: s["media_type"], s["media_file_id"] = "video", message.video.file_id
+    elif message.animation: s["media_type"], s["media_file_id"] = "video", message.animation.file_id
+    elif message.document: s["media_type"], s["media_file_id"] = "document", message.document.file_id
     
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add(types.KeyboardButton("📍 Share Exact Location", request_location=True))
-    bot.send_message(cid, "Evidence buffered successfully. Please share your live GPS location for precise spatial routing:", reply_markup=markup)
+    bot.send_message(cid, "✅ Evidence buffered successfully.\n\nPlease share your live GPS location for precise spatial routing to the nearest municipal office:", reply_markup=markup)
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
@@ -55,7 +55,7 @@ def handle_location(message):
     
     bot.reply_to(message, "⏳ AI processing jurisdictional routing...", reply_markup=types.ReplyKeyboardRemove())
     res = save_grievance(cid, message.from_user.first_name, s.get("raw_text"), s.get("media_type"), s.get("media_file_id"), lat, lon)
-    msg = f"✅ **Ticket Logged:** `{res['ticket_id']}`\n🏢 **Routed To:** {res['office_name']}\n👤 **Officer:** {res['assigned_officer']}"
+    msg = f"🇮🇳 **Ticket Logged Successfully**\n🎫 **ID:** `{res['ticket_id']}`\n🏢 **Routed To:** {res['office_name']}\n👤 **Nodal Officer:** {res['assigned_officer']}"
     bot.send_message(cid, msg, parse_mode="Markdown")
     del user_sessions[cid]
 
