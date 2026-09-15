@@ -62,6 +62,26 @@ def init_db():
                 if cur.fetchone()[0] == 0:
                     officers = [('collector', 'ias@india2026', 'District Collector', 1, 'admin'), ('pwd_roads', 'pwd@infra2026', 'Er. Rajesh Varma', 2, 'field'), ('water_board', 'jal@clean2026', 'Er. K. Ramesh', 3, 'field'), ('electricity', 'power@grid2026', 'Er. M. Praveen', 4, 'field'), ('sanitation', 'swm@clean2026', 'Dr. A. Rao', 5, 'field'), ('cyber_cop', 'cyber@cell2026', 'Inspector S. Reddy', 6, 'field')]
                     cur.executemany("INSERT INTO officers (username, passkey, full_name, department_id, role) VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING", officers)
+                
+                # BUG FIX: Historical Data Restoration for Sept 13/14 Tickets
+                cur.execute("SELECT count(*) FROM tickets WHERE id = 'GRV-0913124104'")
+                if cur.fetchone()[0] == 0:
+                    cur.execute("""
+                        INSERT INTO tickets (id, chat_id, user_name, raw_text, lat, lon, category, severity, status, assigned_department_id) 
+                        VALUES 
+                        ('GRV-0913124104', '0', 'Citizen', 'Leaking drainage water', 17.350, 78.530, 'Sanitation', 'High', '2. Survey & Estimation', 5),
+                        ('GRV-0913123149', '0', 'Citizen', 'traffic break', 17.340, 78.520, 'Roads', 'Medium', '6. Resolved (Social Audit)', 2),
+                        ('GRV-0913122402', '0', 'Citizen', 'pothole', 17.345, 78.525, 'Roads', 'Low', '1. Pending Review', 2)
+                        ON CONFLICT DO NOTHING
+                    """)
+                    cur.execute("""
+                        INSERT INTO budget_ledgers (ticket_id, budget_allocated, amount_spent)
+                        VALUES 
+                        ('GRV-0913124104', 50000, 0),
+                        ('GRV-0913123149', 0, 0),
+                        ('GRV-0913122402', 0, 0)
+                        ON CONFLICT DO NOTHING
+                    """)
             conn.commit()
     except Exception as e:
         print(f"DB Error: {e}")

@@ -65,11 +65,12 @@ def inject_sovereign_css() -> None:
         color: var(--clr-text-primary);
     }
 
-    /* FIX: Hide Streamlit Default Header and adjust padding */
-    header[data-testid="stHeader"] { display: none !important; }
+    /* BUG FIX: Kill the Streamlit invisible header so the banner is flush to the top */
+    header[data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
     .main, .stApp { background-color: var(--clr-chalk) !important; }
+    
     .block-container {
-        padding-top: 2rem !important; 
+        padding-top: 1rem !important; 
         padding-bottom: var(--space-10) !important;
         max-width: 1200px;
     }
