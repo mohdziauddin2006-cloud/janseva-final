@@ -115,7 +115,6 @@ def save_grievance(chat_id, user_name, raw_text, media_type, media_file_id, lat,
             officer_name = o_res[0] if o_res else "Awaiting Nodal Officer"
             
         conn.commit()
-    
     return {"ticket_id": ticket_id, "office_name": dept_name, "assigned_officer": officer_name, **ai_data}
 
 def get_all_complaints():
@@ -144,13 +143,11 @@ def execute_admin_sanction(ticket_id, status, budget, contractor, category, offi
             cur.execute("SELECT id FROM departments WHERE name = %s", (category,))
             dept_row = cur.fetchone()
             dept_id = dept_row[0] if dept_row else None
-            
             officer_id = None
             if dept_id:
                 cur.execute("SELECT id FROM officers WHERE full_name = %s", (assigned_officer,))
                 off_row = cur.fetchone()
-                if off_row:
-                    officer_id = off_row[0]
+                if off_row: officer_id = off_row[0]
                 else:
                     cur.execute("SELECT id FROM officers WHERE department_id = %s LIMIT 1", (dept_id,))
                     fallback = cur.fetchone()
@@ -169,3 +166,10 @@ def execute_field_resolution(ticket_id, spent, materials, media_id):
             cur.execute("UPDATE tickets SET status = '6. Resolved (Social Audit)' WHERE id = %s", (ticket_id,))
             cur.execute("UPDATE budget_ledgers SET amount_spent = %s, materials_used = %s, resolution_media_id = %s, audit_hash = %s, updated_at = NOW() WHERE ticket_id = %s", (spent, materials, media_id, audit_hash, ticket_id))
         conn.commit()
+
+def seed_dummy_data():
+    """Generates fake tickets so the database isn't empty."""
+    init_db()
+    save_grievance("111", "Citizen A", "Massive pothole on Main Road causing traffic.", "none", None, 17.3850, 78.4867)
+    save_grievance("222", "Citizen B", "Water pipeline burst near the market.", "none", None, 17.4000, 78.4500)
+    save_grievance("333", "Citizen C", "Streetlights not working in Sector 4.", "none", None, 17.4400, 78.3900)

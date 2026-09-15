@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from theme import inject_sovereign_css, get_plotly_sovereign_layout
-from backend import get_all_complaints, execute_admin_sanction, execute_field_resolution
+from backend import get_all_complaints, execute_admin_sanction, execute_field_resolution, seed_dummy_data
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -117,8 +117,13 @@ df = load_data()
 
 if page == "🌐 Public Transparency Board":
     st.markdown("<h1>Public Transparency &amp; Social Audit Ledger</h1>", unsafe_allow_html=True)
+    
     if df.empty:
-        st.info("📭 No grievances in the database yet. Submit one via the Telegram bot.")
+        st.info("📭 No grievances in the database yet.")
+        if st.button("🛠️ Generate Dummy Test Data", type="primary"):
+            seed_dummy_data()
+            st.cache_data.clear()
+            st.rerun()
     else:
         m1, m2, m3, m4 = st.columns(4)
         m1.markdown(f'<div class="stat-card"><div class="stat-label">Total Logged</div><div class="stat-val">{len(df)}</div></div>', unsafe_allow_html=True)
