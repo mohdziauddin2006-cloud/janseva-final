@@ -166,10 +166,3 @@ def execute_field_resolution(ticket_id, spent, materials, media_id):
             cur.execute("UPDATE tickets SET status = '6. Resolved (Social Audit)' WHERE id = %s", (ticket_id,))
             cur.execute("UPDATE budget_ledgers SET amount_spent = %s, materials_used = %s, resolution_media_id = %s, audit_hash = %s, updated_at = NOW() WHERE ticket_id = %s", (spent, materials, media_id, audit_hash, ticket_id))
         conn.commit()
-
-def seed_dummy_data():
-    """Generates fake tickets so the database isn't empty."""
-    init_db()
-    save_grievance("111", "Citizen A", "Massive pothole on Main Road causing traffic.", "none", None, 17.3850, 78.4867)
-    save_grievance("222", "Citizen B", "Water pipeline burst near the market.", "none", None, 17.4000, 78.4500)
-    save_grievance("333", "Citizen C", "Streetlights not working in Sector 4.", "none", None, 17.4400, 78.3900)

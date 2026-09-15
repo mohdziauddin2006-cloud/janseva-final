@@ -65,10 +65,11 @@ def inject_sovereign_css() -> None:
         color: var(--clr-text-primary);
     }
 
+    /* FIX: Hide Streamlit Default Header and adjust padding */
+    header[data-testid="stHeader"] { display: none !important; }
     .main, .stApp { background-color: var(--clr-chalk) !important; }
-
     .block-container {
-        padding-top: var(--space-6) !important;
+        padding-top: 2rem !important; 
         padding-bottom: var(--space-10) !important;
         max-width: 1200px;
     }
@@ -160,12 +161,13 @@ def inject_sovereign_css() -> None:
     .gov-banner {
         background-color: var(--clr-obsidian);
         color:            var(--clr-text-inverted);
-        padding:          var(--space-2) var(--space-5);
+        padding:          var(--space-3) var(--space-5);
         font-size:        var(--text-sm);
         font-weight:      500;
         display:          flex;
         justify-content:  space-between;
         align-items:      center;
+        border-radius:    4px 4px 0 0;
     }
     .tricolor-strip {
         height:     4px;
@@ -176,6 +178,7 @@ def inject_sovereign_css() -> None:
             #FFFFFF 33.3%, #FFFFFF 66.6%,
             #138808 66.6%, #138808 100%
         );
+        margin-bottom: 24px;
     }
 
     .timeline-rail {
