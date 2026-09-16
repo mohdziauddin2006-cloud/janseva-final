@@ -36,25 +36,7 @@ def inject_sovereign_css() -> None:
         --text-base:  15px;
         --text-lg:    18px;
         --text-xl:    22px;
-        --text-2xl:   28px;
         --text-3xl:   36px;
-
-        --space-1:    4px;
-        --space-2:    8px;
-        --space-3:    12px;
-        --space-4:    16px;
-        --space-5:    20px;
-        --space-6:    24px;
-        --space-10:   40px;
-
-        --radius-sm:  4px;
-        --radius-md:  8px;
-        --border-thin: 1px solid var(--clr-border);
-        --shadow-sm:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-        --shadow-md:  0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -1px rgba(0,0,0,0.04);
-        --shadow-lg:  0 10px 15px -3px rgba(0,0,0,0.07), 0 4px 6px -2px rgba(0,0,0,0.04);
-        --transition-fast: 120ms ease;
-        --transition-base: 200ms ease;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
@@ -65,14 +47,15 @@ def inject_sovereign_css() -> None:
         color: var(--clr-text-primary);
     }
 
-    /* BUG FIX: Kill the Streamlit invisible header so the banner is flush to the top */
-    header[data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
+    /* CRITICAL FIX: Kill Streamlit Header and Padding */
+    header[data-testid="stHeader"] { display: none !important; }
     .main, .stApp { background-color: var(--clr-chalk) !important; }
     
     .block-container {
-        padding-top: 1rem !important; 
-        padding-bottom: var(--space-10) !important;
+        padding-top: 0rem !important; 
+        padding-bottom: 40px !important;
         max-width: 1200px;
+        margin-top: 0rem !important;
     }
 
     h1, h2, h3, h4, h5, h6 {
@@ -83,8 +66,8 @@ def inject_sovereign_css() -> None:
     }
 
     h1 { font-size: var(--text-3xl) !important; font-weight: 700 !important; }
-    h2 { font-size: var(--text-2xl) !important; font-weight: 700 !important; }
-    h3 { font-size: var(--text-xl)  !important; font-weight: 600 !important; }
+    h2 { font-size: 28px !important; font-weight: 700 !important; }
+    h3 { font-size: 22px !important; font-weight: 600 !important; }
 
     p, li, span {
         font-family: var(--font-display) !important;
@@ -95,15 +78,13 @@ def inject_sovereign_css() -> None:
 
     .dpi-card {
         background:        var(--clr-surface);
-        border:            var(--border-thin);
+        border:            1px solid var(--clr-border);
         border-top:        3px solid var(--clr-obsidian);
-        border-radius:     var(--radius-md);
-        padding:           var(--space-6);
-        margin-bottom:     var(--space-6);
-        box-shadow:        var(--shadow-md);
-        transition:        box-shadow var(--transition-base);
+        border-radius:     8px;
+        padding:           24px;
+        margin-bottom:     24px;
+        box-shadow:        0 4px 6px -1px rgba(0,0,0,0.06);
     }
-    .dpi-card:hover { box-shadow: var(--shadow-lg); }
 
     .dpi-card--saffron { border-top-color: var(--clr-saffron); }
     .dpi-card--azure   { border-top-color: var(--clr-azure);   }
@@ -112,11 +93,11 @@ def inject_sovereign_css() -> None:
 
     .stat-card {
         background:     var(--clr-surface);
-        padding:        var(--space-6);
-        border-radius:  var(--radius-md);
-        border:         var(--border-thin);
+        padding:        24px;
+        border-radius:  8px;
+        border:         1px solid var(--clr-border);
         border-left:    5px solid var(--clr-saffron);
-        box-shadow:     var(--shadow-sm);
+        box-shadow:     0 1px 3px rgba(0,0,0,0.06);
     }
     .stat-label {
         font-size:       var(--text-xs);
@@ -129,13 +110,13 @@ def inject_sovereign_css() -> None:
         font-size:   var(--text-3xl);
         font-weight: 700;
         color:       var(--clr-text-primary);
-        margin-top:  var(--space-1);
+        margin-top:  4px;
     }
 
     .badge {
         display:        inline-block;
-        padding:        var(--space-1) var(--space-3);
-        border-radius:  var(--radius-sm);
+        padding:        4px 12px;
+        border-radius:  4px;
         font-size:      var(--text-xs);
         font-weight:    700;
         text-transform: uppercase;
@@ -153,32 +134,28 @@ def inject_sovereign_css() -> None:
         font-weight:      500;
         background:       var(--clr-obsidian);
         color:            #34d399;
-        padding:          var(--space-2) var(--space-3);
-        border-radius:    var(--radius-sm);
+        padding:          8px 12px;
+        border-radius:    4px;
         letter-spacing:   0.04em;
-        margin-top:       var(--space-3);
+        margin-top:       12px;
     }
 
     .gov-banner {
         background-color: var(--clr-obsidian);
         color:            var(--clr-text-inverted);
-        padding:          var(--space-3) var(--space-5);
+        padding:          12px 20px;
         font-size:        var(--text-sm);
         font-weight:      500;
         display:          flex;
         justify-content:  space-between;
         align-items:      center;
-        border-radius:    4px 4px 0 0;
+        border-radius:    0 0 4px 4px;
+        margin-top:       0px;
     }
     .tricolor-strip {
         height:     4px;
         width:      100%;
-        background: linear-gradient(
-            to right,
-            #FF9933 0%,   #FF9933 33.3%,
-            #FFFFFF 33.3%, #FFFFFF 66.6%,
-            #138808 66.6%, #138808 100%
-        );
+        background: linear-gradient(to right, #FF9933 0%, #FF9933 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #138808 66.6%, #138808 100%);
         margin-bottom: 24px;
     }
 
@@ -186,12 +163,12 @@ def inject_sovereign_css() -> None:
         display:        flex;
         align-items:    center;
         justify-content: space-between;
-        margin:         var(--space-5) 0;
-        padding:        var(--space-4) var(--space-5);
+        margin:         20px 0;
+        padding:        16px 20px;
         background:     var(--clr-chalk);
-        border-radius:  var(--radius-md);
-        border:         var(--border-thin);
-        gap:            var(--space-2);
+        border-radius:  8px;
+        border:         1px solid var(--clr-border);
+        gap:            8px;
     }
     .timeline-step {
         font-size:       var(--text-xs);
@@ -206,27 +183,26 @@ def inject_sovereign_css() -> None:
 
     .photo-box {
         background:    var(--clr-chalk);
-        border:        var(--border-thin);
-        border-radius: var(--radius-md);
-        padding:       var(--space-3);
+        border:        1px solid var(--clr-border);
+        border-radius: 8px;
+        padding:       12px;
         text-align:    center;
         height:        100%;
     }
 
-    [data-testid="stSidebar"] { background-color: var(--clr-surface) !important; border-right: var(--border-thin) !important; }
-    .stButton > button { font-family: var(--font-display) !important; font-weight: 600 !important; border-radius: var(--radius-sm) !important; }
+    [data-testid="stSidebar"] { background-color: var(--clr-surface) !important; border-right: 1px solid var(--clr-border) !important; }
+    .stButton > button { font-family: var(--font-display) !important; font-weight: 600 !important; border-radius: 4px !important; }
     .stButton > button[kind="primary"] { background: var(--clr-obsidian) !important; color: var(--clr-text-inverted) !important; }
-    .stButton > button[kind="primary"]:hover { background: #1e293b !important; box-shadow: var(--shadow-md) !important; }
+    .stButton > button[kind="primary"]:hover { background: #1e293b !important; }
     .stTextInput > div > div > input, .stTextArea > div > textarea, .stNumberInput > div > div > input, .stSelectbox > div > div {
-        font-family: var(--font-display) !important; border-radius: var(--radius-sm) !important; border-color: var(--clr-border-strong) !important;
+        font-family: var(--font-display) !important; border-radius: 4px !important; border-color: var(--clr-border-strong) !important;
     }
     .stTabs [data-baseweb="tab-list"] { border-bottom: 2px solid var(--clr-border) !important; gap: 0 !important; }
-    .stTabs [data-baseweb="tab"] { font-family: var(--font-display) !important; font-weight: 600 !important; font-size: var(--text-sm) !important; text-transform: uppercase !important; color: var(--clr-text-muted) !important; padding: var(--space-3) var(--space-5) !important; }
+    .stTabs [data-baseweb="tab"] { font-family: var(--font-display) !important; font-weight: 600 !important; font-size: var(--text-sm) !important; text-transform: uppercase !important; color: var(--clr-text-muted) !important; padding: 12px 20px !important; }
     .stTabs [aria-selected="true"] { color: var(--clr-obsidian) !important; border-bottom: 2px solid var(--clr-obsidian) !important; }
-    hr { border: none !important; border-top: var(--border-thin) !important; margin: var(--space-5) 0 !important; }
-    [data-testid="stExpander"] { border: var(--border-thin) !important; border-radius: var(--radius-md) !important; background: var(--clr-surface) !important; }
+    hr { border: none !important; border-top: 1px solid var(--clr-border) !important; margin: 20px 0 !important; }
+    [data-testid="stExpander"] { border: 1px solid var(--clr-border) !important; border-radius: 8px !important; background: var(--clr-surface) !important; }
     [data-testid="stPlotlyChart"] { background: transparent !important; }
-    .stMarkdown { line-height: inherit !important; }
     </style>
     """, unsafe_allow_html=True)
 

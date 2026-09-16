@@ -63,7 +63,7 @@ def init_db():
                     officers = [('collector', 'ias@india2026', 'District Collector', 1, 'admin'), ('pwd_roads', 'pwd@infra2026', 'Er. Rajesh Varma', 2, 'field'), ('water_board', 'jal@clean2026', 'Er. K. Ramesh', 3, 'field'), ('electricity', 'power@grid2026', 'Er. M. Praveen', 4, 'field'), ('sanitation', 'swm@clean2026', 'Dr. A. Rao', 5, 'field'), ('cyber_cop', 'cyber@cell2026', 'Inspector S. Reddy', 6, 'field')]
                     cur.executemany("INSERT INTO officers (username, passkey, full_name, department_id, role) VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING", officers)
                 
-                # BUG FIX: Historical Data Restoration for Sept 13/14 Tickets
+                # BUG FIX 1: Historical Data Restoration for Sept 13/14 Tickets
                 cur.execute("SELECT count(*) FROM tickets WHERE id = 'GRV-0913124104'")
                 if cur.fetchone()[0] == 0:
                     cur.execute("""
@@ -82,6 +82,11 @@ def init_db():
                         ('GRV-0913122402', 0, 0)
                         ON CONFLICT DO NOTHING
                     """)
+
+                # BUG FIX 2: Clear out dummy data to fix the map telemetry instantly
+                cur.execute("DELETE FROM tickets WHERE id IN ('111', '222', '333')")
+                cur.execute("DELETE FROM budget_ledgers WHERE ticket_id IN ('111', '222', '333')")
+
             conn.commit()
     except Exception as e:
         print(f"DB Error: {e}")

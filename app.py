@@ -155,7 +155,7 @@ if page == "🌐 Public Transparency Board":
                         <div style="display:flex;flex-wrap:wrap;gap:20px;font-size:12px;color:var(--clr-text-secondary)"><div><b>Sector:</b> {item['category']}</div><div><b>Office:</b> {item['office_name']}</div><div><b>Officer:</b> {item['assigned_officer']}</div><div><b>Budget:</b> ₹{item['budget_allocated']:,.0f}</div><div><b>Severity:</b> {item['severity']}</div></div>
                 """, unsafe_allow_html=True)
                 
-                # BUG FIX: Replaced ternary operator with explicit if-blocks to prevent Streamlit DeltaGenerator string print bug
+                # CRITICAL BUG FIX: Strict explicit if-blocks to prevent Streamlit DeltaGenerator bug
                 if is_resolved:
                     st.markdown("**📸 Official Resolution Evidence**")
                     col_b, col_a = st.columns(2)
@@ -227,7 +227,6 @@ elif page == "📊 Open Data Ledger":
         with col_r:
             st.markdown('<div class="dpi-card"><b>Status Lifecycle Pipeline</b>', unsafe_allow_html=True)
             status_counts = df["status"].value_counts().reset_index()
-            # BUG FIX: Made graph colors distinct (Emerald for resolved, Azure for others) instead of blacking them out.
             status_colors = ["#059669" if "Resolved" in s else "#2563EB" for s in status_counts["status"]]
             fig_bar = go.Figure(go.Bar(x=status_counts["status"], y=status_counts["count"], marker_color=status_colors, textfont=dict(family="Space Grotesk, sans-serif")))
             fig_bar.update_layout(height=350, **get_plotly_sovereign_layout())
@@ -247,8 +246,8 @@ elif page == "📊 Open Data Ledger":
 elif page == "📍 Incident Map":
     st.markdown("<h1>Live Geospatial Incident Map</h1>", unsafe_allow_html=True)
     if not df.empty and not df["lat"].isnull().all():
-        # Added default zoom parameter for better visualization
-        st.map(df.dropna(subset=["lat", "lon"]).rename(columns={"lat": "latitude", "lon": "longitude"}), zoom=10)
+        map_data = df.dropna(subset=["lat", "lon"]).rename(columns={"lat": "latitude", "lon": "longitude"})
+        st.map(map_data, zoom=11, use_container_width=True)
     else: st.warning("No geospatial telemetry available yet.")
 
 elif page == "🔐 Officer Gateway":
@@ -298,9 +297,11 @@ elif page == "⚙️ Command Dashboard":
                 </div>
             """, unsafe_allow_html=True)
             c_url = get_telegram_url(row.get("media_file_id"))
-            if c_url:
-                with st.expander("📎 View Citizen Evidence"): 
+            with st.expander("📎 View Citizen Evidence"): 
+                if c_url:
                     display_media(c_url, row.get("media_type"))
+                else:
+                    st.caption("No media attached.")
 
             if st.session_state.role == "admin":
                 st.markdown('<div class="dpi-card dpi-card--azure">**⚙️ Administrative Sanction Panel**', unsafe_allow_html=True)
