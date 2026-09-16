@@ -20,52 +20,43 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS janseva_tickets (
                     id TEXT PRIMARY KEY,
                     timestamp TIMESTAMPTZ DEFAULT NOW(),
-                    chat_id TEXT,
-                    user_name TEXT,
-                    raw_text TEXT,
-                    media_type TEXT,
-                    media_file_id TEXT,
-                    lat DOUBLE PRECISION,
-                    lon DOUBLE PRECISION,
-                    category TEXT,
-                    severity TEXT,
-                    summary TEXT,
+                    chat_id TEXT, user_name TEXT, raw_text TEXT, 
+                    media_type TEXT, media_file_id TEXT, 
+                    lat DOUBLE PRECISION, lon DOUBLE PRECISION,
+                    category TEXT, severity TEXT, summary TEXT, 
                     status TEXT DEFAULT '1. Pending Review',
-                    office_name TEXT,
-                    assigned_officer TEXT,
-                    budget_allocated NUMERIC DEFAULT 0,
-                    amount_spent NUMERIC DEFAULT 0,
-                    contractor_name TEXT,
-                    materials_used TEXT,
-                    resolution_media_id TEXT,
-                    resolved_at TIMESTAMPTZ
+                    office_name TEXT, assigned_officer TEXT,
+                    budget_allocated NUMERIC DEFAULT 0, amount_spent NUMERIC DEFAULT 0,
+                    contractor_name TEXT, materials_used TEXT,
+                    resolution_media_id TEXT, resolved_at TIMESTAMPTZ
                 );
             """)
         conn.commit()
 
 def analyze_and_route(text):
     client = genai.Client(api_key=GEMINI_API_KEY)
+    
+    departments = [
+        "Roads & Infrastructure", "Water & Sanitation", "Electricity & Power", 
+        "Transport (RTO)", "Revenue & Land", "Food & Civil Supplies", 
+        "Police & Law Enforcement", "Public Health", "Urban Development", 
+        "Pollution Control", "Fire & Rescue", "Women & Child Development", 
+        "Labour Welfare", "Disaster Management", "Telecom & Postal"
+    ]
+    
     prompt = f"""
     Analyze this civic grievance: "{text}"
     Generate a JSON object:
-    - "category": Must be strictly one of [Roads, Water, Electricity, Sanitation, Cyber Crime, Civil]
+    - "category": Strictly select the most relevant department from this list: {departments}
     - "severity": "High" | "Medium" | "Low"
-    - "summary": 1 concise sentence
-    - "office_name": The exact statutory body (e.g., "State PWD Roads Division", "Water Supply Board").
-    - "assigned_officer": A realistic title (e.g., "Er. S. Reddy, JE (Civil)", "Inspector K. Sharma").
+    - "summary": 1 concise sentence summarizing the core issue.
     """
     try:
         response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         clean = response.text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean)
     except Exception:
-        return {
-            "category": "Civil",
-            "severity": "Medium",
-            "summary": text[:80] if text else "Civic issue",
-            "office_name": "Municipal Engineering Division",
-            "assigned_officer": "Nodal Officer"
-        }
+        return {"category": "Roads & Infrastructure", "severity": "Medium", "summary": text[:80] if text else "Civic issue"}
 
 def save_grievance(chat_id, user_name, raw_text, media_type, media_file_id, lat, lon):
     init_db()
@@ -76,12 +67,12 @@ def save_grievance(chat_id, user_name, raw_text, media_type, media_file_id, lat,
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO janseva_tickets (
-                    id, chat_id, user_name, raw_text, media_type, media_file_id, lat, lon, 
-                    category, severity, summary, office_name, assigned_officer, status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '1. Pending Review')
-            """, (ticket_id, str(chat_id), user_name, raw_text, media_type, media_file_id, float(lat) if lat else None, float(lon) if lon else None, 
-                  ai_data.get("category"), ai_data.get("severity"), ai_data.get("summary"), 
-                  ai_data.get("office_name"), ai_data.get("assigned_officer")))
+                    id, chat_id, user_name, raw_text, media_type, media_file_id, 
+                    lat, lon, category, severity, summary, status
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '1. Pending Review')
+            """, (ticket_id, str(chat_id), user_name, raw_text, media_type, media_file_id, 
+                  float(lat) if lat else None, float(lon) if lon else None, 
+                  ai_data.get("category"), ai_data.get("severity"), ai_data.get("summary")))
         conn.commit()
     return {"ticket_id": ticket_id, **ai_data}
 
