@@ -1,6 +1,5 @@
 import os
 import time
-import hashlib
 import requests
 import streamlit as st
 import pandas as pd
@@ -14,7 +13,7 @@ st.set_page_config(page_title="JanSeva DPI | Govt of India", layout="wide", page
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # ==========================================
-# SAFE CSS (No Global Overrides)
+# SAFE CSS (No Overlapping Elements)
 # ==========================================
 st.markdown("""
     <style>
@@ -45,14 +44,12 @@ AUTH_DB = {
 # ==========================================
 # HELPER FUNCTIONS
 # ==========================================
-def get_audit_hash(ticket_id, amount_spent):
-    """Generates a verifiable cryptographic hash for the social audit."""
-    raw_string = f"GOI_DPI_{ticket_id}_{amount_spent}_VERIFIED"
-    return hashlib.sha256(raw_string.encode()).hexdigest()[:16].upper()
-
 def get_telegram_url(file_id):
-    """Safely fetches image URLs from Telegram API."""
-    if not file_id or str(file_id).strip().lower() in {"none", "nan", ""}: return None
+    """Safely fetches image URLs and prevents the broken '0' image bug."""
+    if pd.isna(file_id) or not file_id: return None
+    fid_str = str(file_id).strip().lower()
+    if fid_str in {"none", "nan", "", "0", "null"}: return None
+    
     try:
         r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}", timeout=5).json()
         if r.get("ok"): return f"https://api.telegram.org/file/bot{BOT_TOKEN}/{r['result']['file_path']}"
@@ -96,7 +93,7 @@ with st.sidebar:
 df = load_data()
 
 if page == "🌐 Public Transparency Board":
-    st.header("Public Transparency & Social Audit Ledger")
+    st.header("Public Transparency Ledger")
     
     if df.empty:
         st.info("No grievances in the database yet. Send a message to your Telegram bot to create one.")
@@ -108,54 +105,35 @@ if page == "🌐 Public Transparency Board":
         c4.markdown(f'<div class="stat-card"><div class="stat-label">Resolved</div><div class="stat-val" style="color:#059669;">{len(df[df["status"].str.contains("Resolved", na=False)])}</div></div>', unsafe_allow_html=True)
 
         st.write("---")
-        tab1, tab2 = st.tabs(["📋 Live Grievance Registry", "📸 Immutable Social Audit Feed"])
         
-        with tab1:
-            for _, item in df.iterrows():
-                is_res = "Resolved" in str(item["status"])
-                badge = f'<span class="badge-resolved">✓ {item["status"]}</span>' if is_res else f'<span class="badge-pending">⏳ {item["status"]}</span>'
-                
-                st.markdown(f"""
-                <div class="dpi-card">
-                    <div style="display:flex; justify-content:space-between;">
-                        <b>#{item['id']}</b> {badge}
-                    </div>
-                    <p style="margin-top:10px; font-size:16px;"><b>Issue:</b> {item['raw_text']}</p>
-                    <p style="color:#64748B; font-size:14px;">📍 {fetch_address(item['lat'], item['lon'])}</p>
-                    <hr>
-                    <p style="font-size:13px; color:#475569;">Sector: <b>{item.get('category', 'Civil')}</b> | Budget: <b>₹{item['budget_allocated']:,.0f}</b></p>
+        # Single Unified Feed (No Audit Tab)
+        for _, item in df.iterrows():
+            is_res = "Resolved" in str(item["status"])
+            badge = f'<span class="badge-resolved">✓ {item["status"]}</span>' if is_res else f'<span class="badge-pending">⏳ {item["status"]}</span>'
+            
+            st.markdown(f"""
+            <div class="dpi-card">
+                <div style="display:flex; justify-content:space-between;">
+                    <b>#{item['id']}</b> {badge}
                 </div>
-                """, unsafe_allow_html=True)
-                
-                with st.expander("View Citizen Evidence"):
-                    img_url = get_telegram_url(item.get("media_file_id"))
-                    if img_url: st.image(img_url, use_container_width=True)
-                    else: st.write("No media attached.")
-
-        with tab2:
-            resolved_df = df[df["status"].str.contains("Resolved", na=False)]
-            if resolved_df.empty: st.info("No resolved grievances yet.")
-            else:
-                for _, r in resolved_df.iterrows():
-                    hash_val = r.get("audit_hash") or get_audit_hash(r["id"], r["amount_spent"])
-                    st.markdown(f"""
-                    <div class="dpi-card">
-                        <h4>✅ Verified Resolution: #{r['id']}</h4>
-                        <p><b>Treasury Payout:</b> ₹{r['amount_spent']:,.0f} | <b>BOQ:</b> {r.get('materials_used', 'N/A')}</p>
-                        <p><code>SHA-256 Audit Hash: 0x{hash_val}</code></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                <p style="margin-top:10px; font-size:16px;"><b>Issue:</b> {item['raw_text']}</p>
+                <p style="color:#64748B; font-size:14px;">📍 {fetch_address(item['lat'], item['lon'])}</p>
+                <hr>
+                <p style="font-size:13px; color:#475569;">Sector: <b>{item.get('category', 'Civil')}</b> | Budget: <b>₹{item['budget_allocated']:,.0f}</b></p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with st.expander("View Media Evidence"):
+                img_url = get_telegram_url(item.get("media_file_id"))
+                if img_url: 
+                    st.image(img_url, use_container_width=True, caption="Initial Citizen Report")
+                else: 
+                    st.write("No media attached by citizen.")
                     
-                    colA, colB = st.columns(2)
-                    with colA:
-                        st.caption("Before (Citizen Report)")
-                        b_url = get_telegram_url(r.get("media_file_id"))
-                        if b_url: st.image(b_url, use_container_width=True)
-                    with colB:
-                        st.caption("After (Govt Proof)")
-                        a_url = get_telegram_url(r.get("resolution_media_id"))
-                        if a_url: st.image(a_url, use_container_width=True)
-                    st.write("---")
+                if is_res:
+                    res_url = get_telegram_url(item.get("resolution_media_id"))
+                    if res_url:
+                        st.image(res_url, use_container_width=True, caption="Government Resolution Proof")
 
 elif page == "📊 Open Data Ledger":
     st.header("National Open Data Ledger")
@@ -177,11 +155,14 @@ elif page == "📊 Open Data Ledger":
 elif page == "📍 Live Incident Map":
     st.header("Live Geospatial Incident Map")
     if not df.empty and 'lat' in df.columns and 'lon' in df.columns:
-        # Strictly clean data to prevent map crashes
+        # Strictly clean data to prevent map errors
         map_df = df.dropna(subset=['lat', 'lon']).copy()
         map_df['latitude'] = pd.to_numeric(map_df['lat'], errors='coerce')
         map_df['longitude'] = pd.to_numeric(map_df['lon'], errors='coerce')
         map_df = map_df.dropna(subset=['latitude', 'longitude'])
+        
+        # Filter out 0.0 coordinates which break map framing
+        map_df = map_df[(map_df['latitude'] != 0.0) & (map_df['longitude'] != 0.0)]
         
         if not map_df.empty:
             st.map(map_df, zoom=11)
