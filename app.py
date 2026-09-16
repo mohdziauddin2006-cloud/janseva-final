@@ -13,7 +13,7 @@ st.set_page_config(page_title="JanSeva DPI | Govt of India", layout="wide", page
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # ==========================================
-# 🎨 SOVEREIGN CSS ENGINE
+# 🎨 SOVEREIGN CSS ENGINE (BUG-FREE)
 # ==========================================
 st.markdown("""
     <style>
@@ -51,7 +51,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🏛️ THE MASSIVE GOVERNMENT DIRECTORY
+# 🏛️ THE 16-SECTOR GOVERNMENT DIRECTORY
 # ==========================================
 DEPT_CONFIG = {
     "Transport (RTO)": {"base": "Regional Transport Office (RTO)", "officer": "Transport Inspector"},
@@ -60,7 +60,7 @@ DEPT_CONFIG = {
     "Police & Law Enforcement": {"base": "State Police Command", "officer": "Station House Officer"},
     "Public Health": {"base": "Civic Hospital & Welfare", "officer": "Chief Medical Officer"},
     "Urban Development": {"base": "Town Planning & Zoning", "officer": "Zonal Commissioner"},
-    "Pollution Control": {"base": "State Pollution Control Board", "officer": "Env. Engineer"},
+    "Pollution Control": {"base": "State Pollution Control Board", "officer": "Environmental Engineer"},
     "Fire & Rescue": {"base": "Fire & Emergency Services", "officer": "District Fire Officer"},
     "Women & Child Development": {"base": "WCD Protection Unit", "officer": "Protection Officer"},
     "Labour Welfare": {"base": "Employment Grievance Board", "officer": "Labour Commissioner"},
@@ -68,14 +68,27 @@ DEPT_CONFIG = {
     "Telecom & Postal": {"base": "DOT / India Post Cell", "officer": "Telecom Reg. Officer"},
     "Roads & Infrastructure": {"base": "State PWD Division", "officer": "Executive Engineer"},
     "Water & Sanitation": {"base": "Water & Sewerage Board", "officer": "Sanitary Inspector"},
-    "Electricity & Power": {"base": "State DISCOM", "officer": "Superintending Engineer"}
+    "Electricity & Power": {"base": "State DISCOM", "officer": "Superintending Engineer"},
+    "Civil": {"base": "Municipal Zonal Office", "officer": "Nodal Officer"}
 }
 
 AUTH_DB = {
     "collector": {"pass": "ias2026", "role": "admin", "dept": "All"},
     "rto_admin": {"pass": "rto2026", "role": "field", "dept": "Transport (RTO)"},
+    "revenue_land": {"pass": "rev2026", "role": "field", "dept": "Revenue & Land"},
+    "civil_supplies": {"pass": "pds2026", "role": "field", "dept": "Food & Civil Supplies"},
     "police_hq": {"pass": "ips2026", "role": "field", "dept": "Police & Law Enforcement"},
+    "health_welfare": {"pass": "cmo2026", "role": "field", "dept": "Public Health"},
+    "urban_dev": {"pass": "udp2026", "role": "field", "dept": "Urban Development"},
+    "pollution_board": {"pass": "epb2026", "role": "field", "dept": "Pollution Control"},
+    "fire_rescue": {"pass": "fire2026", "role": "field", "dept": "Fire & Rescue"},
+    "wcd_unit": {"pass": "wcd2026", "role": "field", "dept": "Women & Child Development"},
+    "labour_board": {"pass": "labour2026", "role": "field", "dept": "Labour Welfare"},
+    "disaster_mgmt": {"pass": "ndrf2026", "role": "field", "dept": "Disaster Management"},
+    "telecom_post": {"pass": "dot2026", "role": "field", "dept": "Telecom & Postal"},
     "pwd_roads": {"pass": "pwd2026", "role": "field", "dept": "Roads & Infrastructure"},
+    "water_board": {"pass": "jal2026", "role": "field", "dept": "Water & Sanitation"},
+    "electricity": {"pass": "power2026", "role": "field", "dept": "Electricity & Power"}
 }
 
 if "role" not in st.session_state: st.session_state.role = "public"
@@ -101,11 +114,8 @@ def fetch_geo_data(lat, lon):
     try:
         r = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={"User-Agent": "JanSeva_DPI"}, timeout=3).json()
         address = r.get('display_name', 'Address unknown')
-        
-        # Extract local district or city for branch routing
         addr_dict = r.get('address', {})
         district = addr_dict.get('state_district') or addr_dict.get('city') or addr_dict.get('county') or "Regional"
-        
         return f"{address} ([Map](https://maps.google.com/?q={lat},{lon}))", district
     except: return f"Coordinates: {lat:.4f}, {lon:.4f}", "Regional"
 
