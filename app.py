@@ -1,5 +1,6 @@
 import os
 import time
+import hashlib
 import requests
 import streamlit as st
 import pandas as pd
@@ -45,11 +46,9 @@ AUTH_DB = {
 # HELPER FUNCTIONS
 # ==========================================
 def get_telegram_url(file_id):
-    """Safely fetches image URLs and prevents the broken '0' image bug."""
     if pd.isna(file_id) or not file_id: return None
     fid_str = str(file_id).strip().lower()
     if fid_str in {"none", "nan", "", "0", "null"}: return None
-    
     try:
         r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}", timeout=5).json()
         if r.get("ok"): return f"https://api.telegram.org/file/bot{BOT_TOKEN}/{r['result']['file_path']}"
@@ -63,6 +62,17 @@ def fetch_address(lat, lon):
         r = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={"User-Agent": "JanSeva_DPI"}, timeout=3).json()
         return f"{r.get('display_name', 'Address unknown')} ([Map](https://maps.google.com/?q={lat},{lon}))"
     except Exception: return f"Coordinates: {lat:.4f}, {lon:.4f}"
+
+def render_media(url, media_type, caption_text=""):
+    """Smartly renders media based on whether it is a photo or a video to prevent broken images."""
+    if not url: return
+    m_type = str(media_type).lower()
+    
+    if "video" in m_type or "animation" in m_type or url.endswith(".mp4"):
+        st.video(url)
+        if caption_text: st.caption(caption_text)
+    else:
+        st.image(url, use_container_width=True, caption=caption_text)
 
 def load_data():
     records = get_all_complaints()
@@ -106,7 +116,7 @@ if page == "🌐 Public Transparency Board":
 
         st.write("---")
         
-        # Single Unified Feed (No Audit Tab)
+        # Single Unified Feed (Audit Tab Deleted)
         for _, item in df.iterrows():
             is_res = "Resolved" in str(item["status"])
             badge = f'<span class="badge-resolved">✓ {item["status"]}</span>' if is_res else f'<span class="badge-pending">⏳ {item["status"]}</span>'
@@ -126,14 +136,15 @@ if page == "🌐 Public Transparency Board":
             with st.expander("View Media Evidence"):
                 img_url = get_telegram_url(item.get("media_file_id"))
                 if img_url: 
-                    st.image(img_url, use_container_width=True, caption="Initial Citizen Report")
+                    render_media(img_url, item.get("media_type"), "Initial Citizen Report")
                 else: 
                     st.write("No media attached by citizen.")
                     
                 if is_res:
                     res_url = get_telegram_url(item.get("resolution_media_id"))
                     if res_url:
-                        st.image(res_url, use_container_width=True, caption="Government Resolution Proof")
+                        st.write("---")
+                        render_media(res_url, "photo", "Government Resolution Proof")
 
 elif page == "📊 Open Data Ledger":
     st.header("National Open Data Ledger")
@@ -155,19 +166,14 @@ elif page == "📊 Open Data Ledger":
 elif page == "📍 Live Incident Map":
     st.header("Live Geospatial Incident Map")
     if not df.empty and 'lat' in df.columns and 'lon' in df.columns:
-        # Strictly clean data to prevent map errors
         map_df = df.dropna(subset=['lat', 'lon']).copy()
         map_df['latitude'] = pd.to_numeric(map_df['lat'], errors='coerce')
         map_df['longitude'] = pd.to_numeric(map_df['lon'], errors='coerce')
         map_df = map_df.dropna(subset=['latitude', 'longitude'])
-        
-        # Filter out 0.0 coordinates which break map framing
         map_df = map_df[(map_df['latitude'] != 0.0) & (map_df['longitude'] != 0.0)]
         
-        if not map_df.empty:
-            st.map(map_df, zoom=11)
-        else:
-            st.warning("No valid coordinate data points found.")
+        if not map_df.empty: st.map(map_df, zoom=11)
+        else: st.warning("No valid coordinate data points found.")
     else:
         st.warning("No geospatial data available.")
 
@@ -197,6 +203,11 @@ elif page == "⚙️ Command Dashboard":
             row = active_df[active_df["id"] == sel_id].iloc[0]
             
             st.write(f"**Issue:** {row['raw_text']}")
+            
+            with st.expander("View Citizen Evidence"):
+                c_url = get_telegram_url(row.get("media_file_id"))
+                if c_url: render_media(c_url, row.get("media_type"), "Citizen Report")
+                else: st.write("No media attached.")
             
             if st.session_state.role == "admin":
                 with st.form("admin_act"):
